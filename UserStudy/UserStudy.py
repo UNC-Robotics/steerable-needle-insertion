@@ -115,7 +115,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.createInsertionPose()  #cylinder
     self.createInsertionRegion() #cylinder
     self.createInsertionAngle() #cone
-    # self.createPlan() #line object
+    self.createPlan() #line object
     self.createNeedle() #cylinder?
     self.createGoal() #fiducial        
 
@@ -306,6 +306,19 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     model = self.makeCylinder(needle_data[3], needle_data[4])
 
     self.initModel(model, transform, "Needle", color, opacity)
+
+  def createPlan(self):
+     plan_data = self.loadDataFromFile(self.inputFolder + "plan.txt", ignoreFirstLines=1) 
+     plan = np.array(plan_data)
+     print(plan)
+
+     plan_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+     plan_node.SetName("Plan")
+     plan_node.GetDisplayNode().SetSelectedColor([0,0,0])
+     plan_node.SetDisplayVisibility(True)
+     
+     for index, row in enumerate(plan):
+        plan_node.AddControlPoint(row[0], row[1], row[2], f"Plan{index}")
 
   #create fiducial at goal pos
   def createGoal(self):
