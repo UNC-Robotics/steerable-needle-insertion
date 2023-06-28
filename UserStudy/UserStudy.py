@@ -111,15 +111,15 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
   def onLoadEnvironmentClicked(self):
     self.createTissue() #cuboid
     #To do:
-    # self.createObstacles() #spheres
-    # self.createInsertionPose()  #cylinder
-    # self.createInsertionRegion() #cylinder
-    # self.createInsertionAngle() #cone
+    self.createObstacles() #spheres
+    self.createInsertionPose()  #cylinder
+    self.createInsertionRegion() #cylinder
+    self.createInsertionAngle() #cone
     # self.createPlan() #line object
-    # self.createNeedle() #cylinder?
-    self.createGoal() #fiducial
-        
-        
+    self.createNeedle() #cylinder?
+    self.createGoal() #fiducial        
+
+
   #create tissue rectangle
   def createTissue(self):
     #read in object size
@@ -131,16 +131,184 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     size = np.absolute(corner2 - corner1)
 
     transform = np.eye(4)
-    transform[0:3,3] = center.transpose()
+    transform[0:3,3] = center
     print(transform)
     model = self.makeCube(size[0],size[1], size[2])
     color = [0.8, 0.8, 0.6]
     opacity = 0.2
-    self.initModel(model, transform, "Tissue",  color, opacity)
+    self.initModel(model, transform, "Tissue", color, opacity)
+
+  #create spherical obstacles
+  def createObstacles(self):
+    obstacle1_data = self.loadDataFromFile(self.inputFolder + "obstacle1.txt", ignoreFirstLines=1)
+    obstacle2_data = self.loadDataFromFile(self.inputFolder + "obstacle2.txt", ignoreFirstLines=1)
+    obstacle1_data = obstacle1_data[0]
+    obstacle2_data = obstacle2_data[0]
+
+    obstacle1_center = np.array(obstacle1_data[:3])
+    obstacle2_center = np.array(obstacle2_data[:3])
+
+    obstacle1_transform = np.eye(4)
+    obstacle2_transform = np.eye(4)
+
+    obstacle1_transform[:3,3] = obstacle1_center
+    obstacle2_transform[:3,3] = obstacle2_center
+
+    color = [0.8, 0.2, 0.1]
+    opacity = 1
+
+    obstacle1_model = self.makeSphere(obstacle1_data[3])
+    obstacle2_model = self.makeSphere(obstacle2_data[3])
+    
+    self.initModel(obstacle1_model, obstacle1_transform, "Obstacle1", color, opacity)
+    self.initModel(obstacle2_model, obstacle2_transform, "Obstacle2", color, opacity)
+
+  def createInsertionPose(self):
+    """Given .txt file, creates pose at insertion point"""
+    pose_data = self.loadDataFromFile(self.inputFolder + "startpose.txt", ignoreFirstLines=1)
+    pose_data = pose_data[0]
+
+    transform = np.eye(4)
+
+    theta = np.radians(90-pose_data[5])
+    phi = np.radians(pose_data[6])
+
+    #X axis rotation matrix
+    rotation_matrix_x = np.array([[1,0,0,0],
+                                [0,np.cos(theta),-np.sin(theta),0],
+                                [0,np.sin(theta),np.cos(theta),0],
+                                [0,0,0,1]])
+    
+    #Z axis rotation matrix
+    rotation_matrix_z = np.array([[np.cos(phi),-np.sin(phi),0,0],
+                                  [np.sin(phi),np.cos(phi),0,0],
+                                  [0,0,1,0],
+                                  [0,0,0,1]])
+
+    #Apply x rotation
+    transform = np.matmul(rotation_matrix_x, transform)
+    #Apply z rotation
+    transform = np.matmul(rotation_matrix_z, transform)
+    
+    transform = np.round(transform, 2)
+
+    #Move pose to desired start coordinates
+    start_coords = np.eye(4)
+    start_coords[:3,3] = pose_data[:3]
+    transform = np.matmul(start_coords, transform)
+
+    color = [0, 0, 1]
+    opacity = .3
+
+    model = self.makeCylinder(pose_data[3], pose_data[4])
+
+    self.initModel(model, transform, "StartPose", color, opacity)
+  
+  def createInsertionRegion(self):
+    region_data = self.loadDataFromFile(self.inputFolder + "region.txt", ignoreFirstLines=1)
+    region_data = region_data[0]
+
+    transform = np.eye(4)
+    transform[:3,3] = region_data[:3]
+
+    theta = np.radians(90)
+
+    rotation_matrix_x = np.array([[1,0,0,0],
+                                [0,np.cos(theta),-np.sin(theta),0],
+                                [0,np.sin(theta),np.cos(theta),0],
+                                [0,0,0,1]])
+    
+    transform = np.matmul(transform, rotation_matrix_x)
+    transform = np.round(transform, 2)
+
+    color = [117/255,157/255,230/255]
+    opacity = .5
+
+    model = self.makeCylinder(.5, region_data[3])
+
+    self.initModel(model, transform, "InsertionRegion", color, opacity)
+
+  def createInsertionAngle(self):
+    angle_data = self.loadDataFromFile(self.inputFolder + "angle.txt", ignoreFirstLines=1)
+    angle_data = angle_data[0]
+
+    transform = np.eye(4)
+
+    theta = np.radians(angle_data[5])
+    phi = np.radians(angle_data[6])
+
+    #X axis rotation matrix
+    rotation_matrix_x = np.array([[1,0,0,0],
+                                [0,np.cos(theta),-np.sin(theta),0],
+                                [0,np.sin(theta),np.cos(theta),0],
+                                [0,0,0,1]])
+    
+    #Z axis rotation matrix
+    rotation_matrix_z = np.array([[np.cos(phi),-np.sin(phi),0,0],
+                                  [np.sin(phi),np.cos(phi),0,0],
+                                  [0,0,1,0],
+                                  [0,0,0,1]])
+    
+    #Apply x rotation
+    transform = np.matmul(rotation_matrix_x, transform)
+    #Apply z rotation
+    transform = np.matmul(rotation_matrix_z, transform)
+
+    #Move cone to desired start coordinates
+    start_coords = np.eye(4)
+    start_coords[:3,3] = angle_data[:3]
+
+    transform = np.matmul(start_coords, transform)
+
+    color = [.2, .8, .1]
+    opacity = .2
+
+    model = self.makeCone(angle_data[3], angle_data[4])
+
+    self.initModel(model, transform, "InsertionAngle", color, opacity)
+
+  def createNeedle(self):
+    """Given .txt file, creates needle at desired point"""
+    needle_data = self.loadDataFromFile(self.inputFolder + "needle.txt", ignoreFirstLines=1)
+    needle_data = needle_data[0]
+
+    transform = np.eye(4)
+
+    theta = np.radians(90-needle_data[5])
+    phi = np.radians(needle_data[6])
+
+    #X axis rotation matrix
+    rotation_matrix_x = np.array([[1,0,0,0],
+                                [0,np.cos(theta),-np.sin(theta),0],
+                                [0,np.sin(theta),np.cos(theta),0],
+                                [0,0,0,1]])
+    
+    #Z axis rotation matrix
+    rotation_matrix_z = np.array([[np.cos(phi),-np.sin(phi),0,0],
+                                  [np.sin(phi),np.cos(phi),0,0],
+                                  [0,0,1,0],
+                                  [0,0,0,1]])
+
+    #Apply x rotation
+    transform = np.matmul(rotation_matrix_x, transform)
+    #Apply z rotation
+    transform = np.matmul(rotation_matrix_z, transform)
+    
+    transform = np.round(transform, 2)
+
+    #Move needle to desired start coordinates
+    start_coords = np.eye(4)
+    start_coords[:3,3] = needle_data[:3]
+    transform = np.matmul(start_coords, transform)
+
+    color = [1, 1, 1]
+    opacity = 1
+    model = self.makeCylinder(needle_data[3], needle_data[4])
+
+    self.initModel(model, transform, "Needle", color, opacity)
 
   #create fiducial at goal pos
   def createGoal(self):
-
     goal_data = self.loadDataFromFile(self.inputFolder + "goal.txt", ignoreFirstLines=1) #data in list
     goal = goal_data[0]
     fiducial_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
@@ -148,9 +316,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     fiducial_node.GetDisplayNode().SetSelectedColor([1, 0, 0])
     fiducial_node.SetDisplayVisibility(True)
     fiducial_node.AddControlPoint(goal[0], goal[1], goal[2], "Goal")
-
-
-
 
   def makeCube(self, size_x, size_y, size_z):
     cubeModel = vtk.vtkCubeSource()
@@ -160,6 +325,36 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     cubeModel.SetCenter(0.0, 0.0, 0.0)
     cubeModel.Update()
     return cubeModel
+  
+  def makeSphere(self, radius):
+    sphereModel = vtk.vtkSphereSource()
+    sphereModel.SetCenter(0,0,0)
+    sphereModel.SetRadius(radius)
+    sphereModel.SetThetaResolution(sphereModel.GetThetaResolution()*10)
+    sphereModel.SetPhiResolution(sphereModel.GetPhiResolution()*10)
+    sphereModel.Update()
+    return sphereModel
+
+  def makeCylinder(self, height, radius):
+    cylinderModel = vtk.vtkCylinderSource()
+    cylinderModel.SetHeight(height)
+    cylinderModel.SetRadius(radius)
+    cylinderModel.SetCenter(0,height/2,0)
+    cylinderModel.SetResolution(cylinderModel.GetResolution()*10)
+    cylinderModel.Update()
+    return cylinderModel
+
+  def makeCone(self, height, angle):
+    coneModel = vtk.vtkConeSource()
+    radius = (np.tan(np.radians(angle))*height)
+    coneModel.SetHeight(height)
+    coneModel.SetRadius(radius)
+    coneModel.SetDirection(0,0,-1)
+    coneModel.SetCenter(0,0,height/2)
+    coneModel.SetResolution(coneModel.GetResolution()*10)
+    coneModel.CappingOff()
+    coneModel.Update()
+    return coneModel
 
 
   #add a model to the slicer environment and make it visible

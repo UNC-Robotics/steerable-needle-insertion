@@ -1,0 +1,2 @@
+#x,y,z,height,cone angle, rotation around X, rotation around Z
+260.0 130.0 150.0 120.0 10.0 -60.0 -68
