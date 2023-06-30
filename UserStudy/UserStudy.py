@@ -3,6 +3,7 @@ import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
+import math
 import numpy as np
 
 _EPS = np.finfo(float).eps * 4.0
@@ -64,10 +65,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.loadEnvironmentButton.enabled = True
     self.loadEnvironmentButton.connect('clicked(bool)', self.onLoadEnvironmentClicked)
 
+    self.clearEnvironmentButton = qt.QPushButton("Clear Environment")
+    self.clearEnvironmentButton.toolTip = "Clear experiment environment visualization"
+    self.clearEnvironmentButton.enabled = True
+    self.clearEnvironmentButton.connect('clicked(bool)', self.onClearEnvironmentClicked)
 
     self.userStudySection = self.newSection("User Study")
     self.userStudyLayout = self.newHItemLayout(self.userStudySection,
-                                                   [[None, self.loadEnvironmentButton]])
+                                                   [[None, self.loadEnvironmentButton],
+                                                    [None, self.clearEnvironmentButton]])
+    
+
 
   def createHLayout(self, elements):
     rowLayout = qt.QHBoxLayout()
@@ -107,18 +115,61 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.inputFolder = str(qt.QFileDialog.getExistingDirectory(None, 'Work space', self.inputFolder,
                                                                qt.QFileDialog.ShowDirsOnly)) + "/"
 
+  def onClearEnvironmentClicked(self):
+    slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
+
   #create vtk objects representing parts of the environment
   def onLoadEnvironmentClicked(self):
+
+    self.createCompositeNeedle()
     self.createTissue() #cuboid
-    #To do:
     self.createObstacles() #spheres
     self.createInsertionPose()  #cylinder
     self.createInsertionRegion() #cylinder
     self.createInsertionAngle() #cone
     self.createPlan() #line object
     self.createNeedle() #cylinder?
-    self.createGoal() #fiducial        
+    self.createGoal() #fiducial  
 
+    #Set camera and bounding box initial positions
+    camera = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode")
+    camera.SetPosition([225.0, -929.8879627522049, 114.1622183434929])
+    camera.SetViewUp(0,0,1)
+    slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
+    
+  def createCompositeNeedle(self):
+    opacity = .6
+    white = [1,1,1]
+    black = [.1,.1,.1]
+
+    tipLength = 5
+    tipAngle = 15
+
+    shaftLength = 70
+    handleLength = 40
+
+    needleTip = self.makeCone(tipLength, tipAngle)
+    radius = needleTip.GetRadius()
+    needleShaft = self.makeCylinderLine([0,0,0+tipLength], shaftLength, radius)
+    needleHandle = self.makeEllipsoid([0,0,shaftLength+handleLength],
+                                      [handleLength/10,handleLength/10,handleLength])
+
+    transform = np.eye(4)
+    cleanup_transforms = []
+
+    needleTip = self.initModel(needleTip, transform, "CompositeNeedleTip", white, opacity)
+    needleShaft = self.initModel(needleShaft, transform, "CompositeNeedleShaft", white, opacity)
+    needleHandle = self.initModel(needleHandle, transform, "CompositeNeedleHandle", black, opacity)
+
+    cleanup_transforms.append(needleTip[2])
+    cleanup_transforms.append(needleShaft[2])
+    cleanup_transforms.append(needleHandle[2])
+
+
+    self.initCompositeModel([needleTip[0], needleShaft[0], needleHandle[0]], transform, "CompositeNeedle")
+
+    for node in cleanup_transforms:
+       slicer.mrmlScene.RemoveNode(node)
 
   #create tissue rectangle
   def createTissue(self):
@@ -308,17 +359,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.initModel(model, transform, "Needle", color, opacity)
 
   def createPlan(self):
-     plan_data = self.loadDataFromFile(self.inputFolder + "plan.txt", ignoreFirstLines=1) 
-     plan = np.array(plan_data)
-     print(plan)
+    plan_data = self.loadDataFromFile(self.inputFolder + "plan.txt", ignoreFirstLines=1) 
+    plan = np.array(plan_data)
+    print(plan)
 
-     plan_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
-     plan_node.SetName("Plan")
-     plan_node.GetDisplayNode().SetSelectedColor([0,0,0])
-     plan_node.SetDisplayVisibility(True)
-     
-     for index, row in enumerate(plan):
-        plan_node.AddControlPoint(row[0], row[1], row[2], f"Plan{index}")
+    plan_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+    plan_node.SetName("Plan")
+    plan_node.GetDisplayNode().SetSelectedColor([0,0,0])
+    plan_node.SetDisplayVisibility(True)
+    
+    for index, row in enumerate(plan):
+      plan_node.AddControlPoint(row[0], row[1], row[2], f"Plan{index}")
 
   #create fiducial at goal pos
   def createGoal(self):
@@ -368,6 +419,42 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     coneModel.CappingOff()
     coneModel.Update()
     return coneModel
+  
+  def makeCylinderLine(self, point: list[float], height, radius):
+    lineModel = vtk.vtkLineSource()
+    lineModel.SetPoint1(point)
+    point[2] += height
+    lineModel.SetPoint2(point)
+    lineModel.Update()
+
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputConnection(lineModel.GetOutputPort())
+    tubeFilter.SetRadius(radius)
+    tubeFilter.SetNumberOfSides(30)
+    tubeFilter.Update()
+    return tubeFilter
+  
+  def makeEllipsoid(self, center: list[float], radius: list[float]):
+    model = vtk.vtkSuperquadricSource()
+    model.SetCenter(center)
+    model.SetSize(radius[2])
+    model.SetScale(radius[0]/radius[2], radius[1]/radius[2], radius[2]/radius[2])
+    model.SetAxisOfSymmetry(2)
+    model.SetThetaResolution(model.GetThetaResolution()*10)
+    model.SetPhiResolution(model.GetPhiResolution()*10)
+    model.SetPhiRoundness(model.GetPhiRoundness()*.5)
+    model.SetThetaRoundness(model.GetThetaRoundness()*.5)
+    model.Update()
+    return model
+
+  def initCompositeModel(self, models, transform, name):
+    composite_transform = slicer.vtkMRMLLinearTransformNode()
+    composite_transform.SetMatrixTransformToParent(self.npToVtkMatrix(transform))
+    composite_transform.SetName(name+"Transform")
+    slicer.mrmlScene.AddNode(composite_transform)
+
+    for model in models:
+      model.SetAndObserveTransformNodeID(composite_transform.GetID())
 
 
   #add a model to the slicer environment and make it visible
