@@ -54,6 +54,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
   def initVariables(self):
     self.logic = UserStudyLogic()
     self.inputFolder = os.path.dirname(os.path.abspath(__file__)) + "/Resources/Data/" #Hardcode input path here for testing purposes
+    self.composite_needle = None
     print(self.inputFolder)
 
 
@@ -70,10 +71,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.clearEnvironmentButton.enabled = True
     self.clearEnvironmentButton.connect('clicked(bool)', self.onClearEnvironmentClicked)
 
+    self.moveNeedleButton = qt.QPushButton("Move Needle")
+    self.moveNeedleButton.toolTip = ""
+    self.moveNeedleButton.enabled = True
+    self.moveNeedleButton.connect('clicked(bool)', self.onMoveNeedleClicked)
+
     self.userStudySection = self.newSection("User Study")
     self.userStudyLayout = self.newHItemLayout(self.userStudySection,
                                                    [[None, self.loadEnvironmentButton],
-                                                    [None, self.clearEnvironmentButton]])
+                                                    [None, self.clearEnvironmentButton],
+                                                    [None, self.moveNeedleButton]])
     
 
 
@@ -115,8 +122,22 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.inputFolder = str(qt.QFileDialog.getExistingDirectory(None, 'Work space', self.inputFolder,
                                                                qt.QFileDialog.ShowDirsOnly)) + "/"
 
+  def onMoveNeedleClicked(self):
+    if self.composite_needle == None:
+      raise AttributeError("Composite needle not created")
+      return
+    translation = np.eye(4)
+    translation[:3,3] = 10
+
+    original = self.getTransformMat(self.composite_needle.GetName())
+
+    update_transform = np.matmul(translation, original)
+
+    self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(update_transform))
+
   def onClearEnvironmentClicked(self):
     slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
+    self.composite_needle = None
 
   #create vtk objects representing parts of the environment
   def onLoadEnvironmentClicked(self):
@@ -166,10 +187,12 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     cleanup_transforms.append(needleHandle[2])
 
 
-    self.initCompositeModel([needleTip[0], needleShaft[0], needleHandle[0]], transform, "CompositeNeedle")
+    self.composite_needle = self.initCompositeModel([needleTip[0], needleShaft[0], 
+                                                    needleHandle[0]], transform, "CompositeNeedle")
 
     for node in cleanup_transforms:
        slicer.mrmlScene.RemoveNode(node)
+    
 
   #create tissue rectangle
   def createTissue(self):
@@ -456,6 +479,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     for model in models:
       model.SetAndObserveTransformNodeID(composite_transform.GetID())
 
+    return composite_transform
 
   #add a model to the slicer environment and make it visible
   def initModel(self, model, transform, name, color, opacity=1.0):
@@ -554,7 +578,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         vtk_mat = vtk.vtkMatrix4x4()
         transform_node = slicer.util.getNode(name)
         transform_node.GetMatrixTransformToWorld(vtk_mat)
-        np_mat = self.convertVtkMatrix(vtk_mat)
+        np_mat = self.vtkToNpMatrix(vtk_mat)
         # self.planeMat = np_mat
         # print(np_mat)
         return np_mat
