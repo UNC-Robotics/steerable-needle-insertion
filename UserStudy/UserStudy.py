@@ -57,6 +57,20 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.composite_needle = None
     print(self.inputFolder)
 
+    defaultTimeInterval = 20
+    self.timer = qt.QTimer()
+    self.timer.setInterval(defaultTimeInterval)
+    self.timer.connect('timeout()', self.onTimeOut)
+
+    self.needle_update = False
+    self.needle_file = self.inputFolder + "needle-tracker.txt"
+    self.needle_pose_index = 0
+    self.needle_data = []
+
+    self.needle_registration = np.eye(4)
+    self.needle_registration[0:3,3] = np.array([330.0, -20.0, 250.0]) #hardcoded values for recorded data
+    self.stream_live_data = True
+
 
   def initUI(self):
 
@@ -76,11 +90,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.moveNeedleButton.enabled = True
     self.moveNeedleButton.connect('clicked(bool)', self.onMoveNeedleClicked)
 
+    self.StartButton = qt.QPushButton("Start needle")
+    self.StartButton.toolTip = "Start streaming needle tracker data"
+    self.StartButton.enabled = True
+    self.StartButton.connect('clicked(bool)', self.onStartNeedleClicked)
+
+
     self.userStudySection = self.newSection("User Study")
     self.userStudyLayout = self.newHItemLayout(self.userStudySection,
                                                    [[None, self.loadEnvironmentButton],
                                                     [None, self.clearEnvironmentButton],
-                                                    [None, self.moveNeedleButton]])
+                                                    [None, self.moveNeedleButton, self.StartButton]])
     
 
 
@@ -134,6 +154,68 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     update_transform = np.matmul(translation, original)
 
     self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(update_transform))
+
+
+  def onStartNeedleClicked(self):
+    #if data is already streaming, turn it off
+    if self.needle_update:
+        self.needle_update = False
+        self.StartButton.text = "Start needle"
+        self.timer.stop()
+
+    #if not yet running, turn it on
+    else:
+        self.needle_update = True
+        self.StartButton.text = "Stop needle"
+        self.timer.start()
+
+  def onTimeOut(self):
+    self.timer.stop()
+    if self.needle_update:
+      success = self.onNeedleRefresh()
+      self.timer.start()
+
+  def onNeedleRefresh(self):
+    if (not os.path.isfile(self.needle_file)) or (not os.path.exists(self.needle_file)):
+      print(self.needle_file + " does not exist!")
+      return False
+
+    #pre-recorded data
+    if not self.stream_live_data:
+      if not self.needle_data: #start streaming for the first time: load data from file
+        self.needle_data = self.loadDataFromFile(self.needle_file, 0)
+        self.needle_pose_index = 0
+
+      if self.needle_pose_index >= len(self.needle_data)-1: #last line reached
+        self.needle_pose_index = 0
+        self.onStartNeedleClicked() #click 'stop' button
+
+      self.needle_pose_index+=1
+
+    #live data via ROS
+    else:
+      self.needle_data = self.loadDataFromFile(self.needle_file, 0)
+
+    data = self.needle_data[self.needle_pose_index]
+    if not len(data) == 7:
+      print('Unexpected file format')
+      print(data)
+      return False
+
+    pos = data[0:3]
+    quat = data[3:7]
+
+    success = self.updateNeedle(pos, quat)
+    return success
+
+  def updateNeedle(self, pos, quat):
+    if len(pos) != 3 or len(quat) != 4:
+        return False
+    current = self.getTransformRot(pos, self.quaternionToRotationMatrix(quat))
+    T = np.matmul(current, self.needle_registration)
+    self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(T))
+    return True
+
 
   def onClearEnvironmentClicked(self):
     slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
@@ -626,11 +708,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             linecount += 1
             if ignoreFirstLines > linecount:
                 continue
-
             fields = line.split(" ")
 
             if fields[-1] == "\n":  # Remove newline
-                fields[-1] = fields[:-1]
+                fields = fields[:-1]
 
             if fields[-1][-1] == "\n":  # Remove newline not separated from last number
                 fields[-1] = fields[-1][:-1]
