@@ -62,14 +62,15 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.timer.setInterval(defaultTimeInterval)
     self.timer.connect('timeout()', self.onTimeOut)
 
+    self.needleMovementSelected = False
     self.needle_update = False
-    self.needle_file = self.inputFolder + "needle-tracker.txt"
+    self.needle_file = self.inputFolder
     self.needle_pose_index = 0
     self.needle_data = []
 
     self.needle_registration = np.eye(4)
     self.needle_registration[0:3,3] = np.array([330.0, -20.0, 250.0]) #hardcoded values for recorded data
-    self.stream_live_data = True
+    self.stream_live_data = False
 
 
   def initUI(self):
@@ -87,20 +88,61 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     self.moveNeedleButton = qt.QPushButton("Move Needle")
     self.moveNeedleButton.toolTip = ""
-    self.moveNeedleButton.enabled = True
+    self.moveNeedleButton.enabled = False
     self.moveNeedleButton.connect('clicked(bool)', self.onMoveNeedleClicked)
 
     self.StartButton = qt.QPushButton("Start needle")
-    self.StartButton.toolTip = "Start streaming needle tracker data"
-    self.StartButton.enabled = True
+    self.StartButton.toolTip = "Start/stop needle movement"
+    self.StartButton.enabled = False
     self.StartButton.connect('clicked(bool)', self.onStartNeedleClicked)
+
+    self.needleSettings = qt.QLabel("Needle Movement Settings")
+    self.needleSettings.enabled = False
+    self.needleSettings.setAlignment(qt.Qt.AlignCenter)
+
+    self.dropDownMovement = qt.QComboBox()
+    self.dropDownMovementLabel = qt.QLabel("Select recording: ")
+    self.dropDownMovementLabel.enabled = False
+    self.dropDownMovementLabel.setAlignment(qt.Qt.AlignCenter)
+    self.dropDownMovement.enabled = False
+    self.dropDownMovement.addItems(["","recording1.txt","recording2.txt","recording3.txt",
+                                    "recording4.txt","recording5.txt"])
+    for index in range(self.dropDownMovement.model().rowCount()):
+      self.dropDownMovement.setItemData(index, qt.Qt.AlignCenter, qt.Qt.TextAlignmentRole)
+    self.dropDownMovement.currentIndexChanged.connect(self.onDropDownMovementSelect)
+
+    self.streamingCheckBox = qt.QCheckBox("Stream data?")
+    self.streamingCheckBox.setStyleSheet("margin-left:25%; margin-right:25%;")
+    self.streamingCheckBox.setLayoutDirection(qt.Qt.RightToLeft)
+    self.streamingCheckBox.setChecked(False)
+    self.streamingCheckBox.enabled = False
+    self.streamingCheckBox.toggled.connect(self.onStreamingCheck)
+
+    self.comboDropDownMovement = qt.QWidget()
+    self.comboDropDownMovementLayout = qt.QHBoxLayout(self.comboDropDownMovement)
+    self.comboDropDownMovementLayout.addWidget(self.dropDownMovementLabel)
+    self.comboDropDownMovementLayout.addWidget(self.dropDownMovement)
+
+    self.resetNeedleButton = qt.QPushButton("Reset needle")
+    self.resetNeedleButton.toolTip = "Resets needle data"
+    self.resetNeedleButton.enabled = False
+    self.resetNeedleButton.connect('clicked(bool)', self.onResetNeedleButton)
+
+    ## remove
+    self.camerabutton = qt.QPushButton("Camera Info")
+    self.camerabutton.enabled = True
+    self.camerabutton.connect('clicked(bool)', self.oncamerabutton)
+    ##
 
 
     self.userStudySection = self.newSection("User Study")
     self.userStudyLayout = self.newHItemLayout(self.userStudySection,
                                                    [[None, self.loadEnvironmentButton],
                                                     [None, self.clearEnvironmentButton],
-                                                    [None, self.moveNeedleButton, self.StartButton]])
+                                                    [None, self.needleSettings],
+                                                    [None, self.streamingCheckBox, self.comboDropDownMovement],
+                                                    [None, self.StartButton, self.resetNeedleButton],
+                                                    [None, self.camerabutton]])
     
 
 
@@ -158,13 +200,25 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
   def onStartNeedleClicked(self):
     #if data is already streaming, turn it off
+    if self.needle_file.endswith("Data/"):
+      raise AttributeError("Needle movement file not selected")
+    if self.composite_needle == None:
+      raise AttributeError("Composite needle not created")
+
     if self.needle_update:
+        self.clearEnvironmentButton.enabled = True
         self.needle_update = False
         self.StartButton.text = "Start needle"
         self.timer.stop()
+        self.resetNeedleButton.enabled = True
 
     #if not yet running, turn it on
     else:
+        self.clearEnvironmentButton.enabled = False
+        self.resetNeedleButton.enabled = False
+        self.dropDownMovement.enabled = False
+        self.dropDownMovementLabel.enabled = False
+        self.streamingCheckBox.enabled = False
         self.needle_update = True
         self.StartButton.text = "Stop needle"
         self.timer.start()
@@ -215,14 +269,81 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     T = np.matmul(current, self.needle_registration)
     self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(T))
     return True
+  
+  def onDropDownMovementSelect(self, index):
+    text = self.dropDownMovement.itemText(index)
+    if text == "":
+       self.needleMovementSelected = False
+       self.StartButton.enabled = False
+    else:
+       self.StartButton.enabled = True
+       self.needleMovementSelected = True
+    self.needle_file = self.inputFolder + text
+    print(self.needle_file)
+
+  def onStreamingCheck(self):
+    checked = self.streamingCheckBox.isChecked()
+
+    if checked:
+      self.dropDownMovement.setCurrentIndex(0)
+      self.dropDownMovement.enabled = False
+      self.dropDownMovementLabel.enabled = False
+      self.stream_live_data = True
+      self.needle_file = self.inputFolder + "needle-tracker.txt"
+      self.StartButton.enabled = True
+      print(self.needle_file)
+    else:
+      self.StartButton.enabled = False
+      self.stream_live_data = False
+      self.needle_file = self.inputFolder
+      self.dropDownMovement.enabled = True
+      self.dropDownMovementLabel.enabled = True
+      self.StartButton.enabled = False
+      print(self.needle_file)
+
+  def onResetNeedleButton(self):
+    self.needle_pose_index = 0
+    self.needle_data = []
+
+    self.needle_registration = np.eye(4)
+    self.needle_registration[0:3,3] = np.array([330.0, -20.0, 250.0]) #hardcoded values for recorded data
+
+    self.streamingCheckBox.enabled = True
+    self.dropDownMovement.enabled = True
+    self.dropDownMovementLabel.enabled = True
+
+    self.dropDownMovement.setCurrentIndex(0)
+    self.streamingCheckBox.setChecked(False)
+    self.resetNeedleButton.enabled = False
+    
+
+    self.onClearEnvironmentClicked()
+    self.onLoadEnvironmentClicked()
 
 
   def onClearEnvironmentClicked(self):
+
     slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
-    self.composite_needle = None
+    
+    self.dropDownMovement.setCurrentIndex(0)
+    self.streamingCheckBox.setChecked(False)
+    self.initVariables()
+
+    self.needleSettings.enabled = False
+    self.streamingCheckBox.enabled = False
+    self.StartButton.enabled = False
+    self.resetNeedleButton.enabled = False
+    self.dropDownMovement.enabled = False
+    self.dropDownMovementLabel.enabled = False
+    self.loadEnvironmentButton.enabled = True
+
+    self.regionColorTimer.stop()
 
   #create vtk objects representing parts of the environment
   def onLoadEnvironmentClicked(self):
+
+    self.loadEnvironmentButton.enabled = False
+    self.clearEnvironmentButton.enabled = True
 
     self.createCompositeNeedle()
     self.createTissue() #cuboid
@@ -235,10 +356,123 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.createGoal() #fiducial  
 
     #Set camera and bounding box initial positions
-    camera = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode")
+    camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
+
+    print(f"camera 1 init pos {camera.GetPosition()}")
+    print(f"camera 1 init viewup {camera.GetViewUp()}")
+    print(f"camera 1 init focal {camera.GetFocalPoint()}")
+
     camera.SetPosition([225.0, -929.8879627522049, 114.1622183434929])
     camera.SetViewUp(0,0,1)
+
+    print(f"camera 1 set pos {camera.GetPosition()}")
+    print(f"camera 1 set viewup {camera.GetViewUp()}")
+    print(f"camera 1 set focal {camera.GetFocalPoint()}")
+
+    # slicer.app.layoutManager().threeDWidget(0).threeDView().renderWindow().GetRenderers().GetFirstRenderer().ResetCamera()
+    # camera.SetFocalPoint(223.0, 148.0, 114.1622183434929)
+    # slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
+
+    print(f"camera 1 pos after reset focal {camera.GetPosition()}")
+    print(f"camera 1 view after reset focal {camera.GetViewUp()}")
+    print(f"camera 1 focal after reset focal {camera.GetFocalPoint()}")
+
+    slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutDual3DView)
+
+    print(f"camera 1 pos after set layout {camera.GetPosition()}")
+    print(f"camera 1 view after set layout {camera.GetViewUp()}")
+    print(f"camera 1 focal after set layout{camera.GetFocalPoint()}")
+
+    camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
+
+    print(f"camera 1 pos after get 2 {camera.GetPosition()}")
+    print(f"camera 1 view after get 2 {camera.GetViewUp()}")
+    print(f"camera 1 focal after get 2 {camera.GetFocalPoint()}")
+
+    print(f"camera 2 pos after get {camera_2.GetPosition()}")
+    print(f"camera 2 view after get {camera_2.GetViewUp()}")
+    print(f"camera 2 focal after get{camera_2.GetFocalPoint()}")
+
+    camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
+
+    print(f"camera 1 pos after setobs 2 {camera.GetPosition()}")
+    print(f"camera 1 view after setobs 2 {camera.GetViewUp()}")
+    print(f"camera 1 focal after setobs 2 {camera.GetFocalPoint()}")
+
+    print(f"camera 2 pos after setobs {camera_2.GetPosition()}")
+    print(f"camera 2 view after setobs {camera_2.GetViewUp()}")
+    print(f"camera 2 focal after setobs{camera_2.GetFocalPoint()}")
+
+
+    initial_position = np.eye(4)
+    initial_position[:3,3] = [225.0, 150.0, 175.0]
+
+    self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(initial_position))
+
+    # camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
+
+    print(f"camera 1 pos after move need {camera.GetPosition()}")
+    print(f"camera 1 view after move need {camera.GetViewUp()}")
+    print(f"camera 1 focal after move need{camera.GetFocalPoint()}")
+
+    print(f"camera 2 pos after move need {camera_2.GetPosition()}")
+    print(f"camera 2 view after move need {camera_2.GetViewUp()}")
+    print(f"camera 2 focal after move need{camera_2.GetFocalPoint()}")
+
+
+    origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
+    # self.oncamerabutton()
+
+
+    camera_2.SetPosition(225.20335390291237, 144.45305645449645, 249.6013194165112)
+    camera_2.SetViewUp(0.007225311558870536, -0.9972196262444875, -0.07416745853595437)
+
+    print(f"camera 1 pos after set 2 {camera.GetPosition()}")
+    print(f"camera 1 view after set 2 {camera.GetViewUp()}")
+    print(f"camera 1 focal after set 2{camera.GetFocalPoint()}")
+
+    print(f"camera 2 pos after set 2 {camera_2.GetPosition()}")
+    print(f"camera 2 view after set 2 {camera_2.GetViewUp()}")
+    print(f"camera 2 focal after set 2{camera_2.GetFocalPoint()}")
+
+    self.needleSettings.enabled = True
+    self.streamingCheckBox.enabled = True
+    self.StartButton.enabled = False
+    self.resetNeedleButton.enabled = False
+    self.dropDownMovement.enabled = True
+    self.dropDownMovementLabel.enabled = True
+
+    interval = 20
+    self.regionColorTimer = qt.QTimer()
+    self.regionColorTimer.setInterval(interval)
+    self.regionColorTimer.connect('timeout()', self.updateRegionColor)
+    self.regionColorTimer.start()
+
     slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(1).threeDController().resetFocalPoint()
+
+
+    print(f"camera 1 pos end {camera.GetPosition()}")
+    print(f"camera 1 view end {camera.GetViewUp()}")
+    print(f"camera 1 focal end{camera.GetFocalPoint()}")
+
+    print(f"camera 2 pos end {camera_2.GetPosition()}")
+    print(f"camera 2 view end {camera_2.GetViewUp()}")
+    print(f"camera 2 focal end{camera_2.GetFocalPoint()}")
+
+
+
+
+  def oncamerabutton(self):
+     print(
+          ("Position" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetPosition()) + "\n"),
+          ("ViewUp" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetViewUp()) + "\n"),
+          ("ViewAngle " + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetViewAngle()) + "\n"),
+          ("FocalPoint" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetFocalPoint()) + "\n"),
+          )
+     
+  
+
     
   def createCompositeNeedle(self):
     opacity = .6
@@ -251,30 +485,29 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     shaftLength = 70
     handleLength = 40
 
-    needleTip = self.makeCone(tipLength, tipAngle)
-    radius = needleTip.GetRadius()
-    needleShaft = self.makeCylinderLine([0,0,0+tipLength], shaftLength, radius)
-    needleHandle = self.makeEllipsoid([0,0,shaftLength+handleLength],
+    compositeNeedleTip = self.makeCone(tipLength, tipAngle, 3)
+    radius = compositeNeedleTip.GetRadius()
+    compositeNeedleShaft = self.makeCylinderLine([0,0,0+tipLength], shaftLength, radius)
+    compositeNeedleHandle = self.makeEllipsoid([0,0,shaftLength+handleLength],
                                       [handleLength/10,handleLength/10,handleLength])
 
     transform = np.eye(4)
     cleanup_transforms = []
 
-    needleTip = self.initModel(needleTip, transform, "CompositeNeedleTip", white, opacity)
-    needleShaft = self.initModel(needleShaft, transform, "CompositeNeedleShaft", white, opacity)
-    needleHandle = self.initModel(needleHandle, transform, "CompositeNeedleHandle", black, opacity)
+    self.compositeNeedleTip = self.initModel(compositeNeedleTip, transform, "CompositeNeedleTip", white, opacity)
+    self.compositeNeedleShaft = self.initModel(compositeNeedleShaft, transform, "CompositeNeedleShaft", white, opacity)
+    self.compositeNeedleHandle = self.initModel(compositeNeedleHandle, transform, "CompositeNeedleHandle", black, opacity)
 
-    cleanup_transforms.append(needleTip[2])
-    cleanup_transforms.append(needleShaft[2])
-    cleanup_transforms.append(needleHandle[2])
+    cleanup_transforms.append(self.compositeNeedleTip[2])
+    cleanup_transforms.append(self.compositeNeedleShaft[2])
+    cleanup_transforms.append(self.compositeNeedleHandle[2])
 
 
-    self.composite_needle = self.initCompositeModel([needleTip[0], needleShaft[0], 
-                                                    needleHandle[0]], transform, "CompositeNeedle")
+    self.composite_needle = self.initCompositeModel([self.compositeNeedleTip[0], self.compositeNeedleShaft[0], 
+                                                    self.compositeNeedleHandle[0]], transform, "CompositeNeedle")
 
     for node in cleanup_transforms:
        slicer.mrmlScene.RemoveNode(node)
-    
 
   #create tissue rectangle
   def createTissue(self):
@@ -382,7 +615,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     model = self.makeCylinder(.5, region_data[3])
 
-    self.initModel(model, transform, "InsertionRegion", color, opacity)
+    self.coloredRegionRadius = region_data[3]
+
+    self.coloredRegion = self.initModel(model, transform, "InsertionRegion", color, opacity)
+    
 
   def createInsertionAngle(self):
     angle_data = self.loadDataFromFile(self.inputFolder + "angle.txt", ignoreFirstLines=1)
@@ -419,7 +655,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     color = [.2, .8, .1]
     opacity = .2
 
-    model = self.makeCone(angle_data[3], angle_data[4])
+    model = self.makeCone(angle_data[3], angle_data[4], 10)
 
     self.initModel(model, transform, "InsertionAngle", color, opacity)
 
@@ -513,14 +749,14 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     cylinderModel.Update()
     return cylinderModel
 
-  def makeCone(self, height, angle):
+  def makeCone(self, height, angle, resolution):
     coneModel = vtk.vtkConeSource()
     radius = (np.tan(np.radians(angle))*height)
     coneModel.SetHeight(height)
     coneModel.SetRadius(radius)
     coneModel.SetDirection(0,0,-1)
     coneModel.SetCenter(0,0,height/2)
-    coneModel.SetResolution(coneModel.GetResolution()*10)
+    coneModel.SetResolution(coneModel.GetResolution()*resolution)
     coneModel.CappingOff()
     coneModel.Update()
     return coneModel
@@ -693,6 +929,68 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
   def rodriguesRotation(self, normal_vec, so, beta):
         so_rot = (np.cos(beta) * so) + (np.sin(beta) * np.cross(normal_vec, so)) + ((1 - np.cos(beta)) * np.dot(normal_vec, so) * normal_vec)
         return so_rot
+
+  def colorMap(self, n):
+    color_map = np.array([
+                          [1.000, 0.000, 0.000],
+                          [1.000, 0.071, 0.000],
+                          [1.000, 0.143, 0.000],
+                          [1.000, 0.214, 0.000],
+                          [1.000, 0.286, 0.000],
+                          [1.000, 0.357, 0.000],
+                          [1.000, 0.429, 0.000],
+                          [1.000, 0.500, 0.000],
+                          [1.000, 0.571, 0.000],
+                          [1.000, 0.643, 0.000],
+                          [1.000, 0.714, 0.000],
+                          [1.000, 0.786, 0.000],
+                          [1.000, 0.857, 0.000],
+                          [1.000, 0.929, 0.000],
+                          [1.000, 1.000, 0.000],
+                          [0.933, 1.000, 0.000],
+                          [0.867, 1.000, 0.000],
+                          [0.800, 1.000, 0.000],
+                          [0.733, 1.000, 0.000],
+                          [0.667, 1.000, 0.000],
+                          [0.600, 1.000, 0.000],
+                          [0.533, 1.000, 0.000],
+                          [0.467, 1.000, 0.000],
+                          [0.400, 1.000, 0.000],
+                          [0.333, 1.000, 0.000],
+                          [0.267, 1.000, 0.000],
+                          [0.200, 1.000, 0.000],
+                          [0.133, 1.000, 0.000],
+                          [0.067, 1.000, 0.000],
+                          [0.000, 1.000, 0.000]
+                         ])
+    return color_map[n]
+  
+  def distance(self, T1, T2):
+    """Given two transform nodes, calculates distance between their reference points"""
+    pos1 = self.getTransformMat(T1.GetName())[:3,3]
+    pos2 = self.getTransformMat(T2.GetName())[:3,3]
+
+    x1, y1, z1 = pos1
+    x2, y2, z2 = pos2
+
+    return math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+  
+  def updateRegionColor(self):
+    needle_pos = self.composite_needle
+    region_pos = self.coloredRegion[2]
+    region_display = self.coloredRegion[1]
+
+    distance = self.distance(needle_pos, region_pos)
+
+    color_map_length = 29
+
+    if distance > self.coloredRegionRadius:
+      color = [1, 0, 0]
+    else:
+      colorPos = int((1 - distance/self.coloredRegionRadius) * color_map_length)
+      color = self.colorMap(colorPos)
+
+    region_display.SetColor(color)
 
   def loadDataFromFile(self, fullPath, ignoreFirstLines=1):
         print("Loading points from " + str(fullPath))
