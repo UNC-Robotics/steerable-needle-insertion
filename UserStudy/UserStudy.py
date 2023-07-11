@@ -5,6 +5,8 @@ from slicer.ScriptedLoadableModule import *
 import logging
 import math
 import numpy as np
+import Resources.UI.Layouts as layouts
+import re
 
 _EPS = np.finfo(float).eps * 4.0
 #
@@ -26,7 +28,7 @@ class UserStudy(ScriptedLoadableModule):
 This is an example of scripted loadable module bundled in an extension.
 It performs a simple thresholding on the input volume and optionally captures a screenshot.
 """
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    # self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
@@ -47,6 +49,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
+    self.scene = slicer.mrmlScene
     self.initVariables()
     self.initUI()
 
@@ -55,6 +58,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.logic = UserStudyLogic()
     self.inputFolder = os.path.dirname(os.path.abspath(__file__)) + "/Resources/Data/" #Hardcode input path here for testing purposes
     self.composite_needle = None
+
     print(self.inputFolder)
 
     defaultTimeInterval = 20
@@ -76,6 +80,11 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
   def initUI(self):
 
     # load environment visualization elements
+    self.userSwitched = False
+    self.viewSelected = False
+    self.viewSelectedLayout = layouts.VIEW_MAP[""]
+    self.currentLayout = 100
+
     self.loadEnvironmentButton = qt.QPushButton("Load Environment")
     self.loadEnvironmentButton.toolTip = "Load experiment environment visualization"
     self.loadEnvironmentButton.enabled = True
@@ -128,22 +137,129 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.resetNeedleButton.enabled = False
     self.resetNeedleButton.connect('clicked(bool)', self.onResetNeedleButton)
 
-    ## remove
-    self.camerabutton = qt.QPushButton("Camera Info")
-    self.camerabutton.enabled = True
-    self.camerabutton.connect('clicked(bool)', self.oncamerabutton)
-    ##
+    self.dropDownViewSelector = qt.QComboBox()
+    self.dropDownViewSelector.setStyleSheet("margin-left:100%; margin-right:100%;")
+    self.dropDownViewSelectorLabel = qt.QLabel("Select View: ")
+    self.dropDownViewSelectorLabel.enabled = True
+    self.dropDownViewSelectorLabel.setAlignment(qt.Qt.AlignCenter)
+    self.dropDownViewSelector.enabled = True
+    self.dropDownViewSelector.addItems(["","Two Top Three Bottom", "Three Top Two Bottom"])
+    for index in range(self.dropDownViewSelector.model().rowCount()):
+      self.dropDownViewSelector.setItemData(index, qt.Qt.AlignCenter, qt.Qt.TextAlignmentRole)
+    self.dropDownViewSelector.currentIndexChanged.connect(self.onDropDownViewSelect)
+
+    self.orderSelect = qt.QLineEdit()
+    self.orderSelectLabel = qt.QLabel("Select Order:")
+    self.orderSelect.setMaxLength(self.viewSelectedLayout[1])
+    self.orderSelect.returnPressed.connect(self.onOrderSelectEnter)
+
+
 
 
     self.userStudySection = self.newSection("User Study")
     self.userStudyLayout = self.newHItemLayout(self.userStudySection,
-                                                   [[None, self.loadEnvironmentButton],
+                                                   [[None, self.dropDownViewSelectorLabel, self.orderSelectLabel],
+                                                    [None, self.dropDownViewSelector, self.orderSelect],
+                                                    [None, self.loadEnvironmentButton],
                                                     [None, self.clearEnvironmentButton],
                                                     [None, self.needleSettings],
                                                     [None, self.streamingCheckBox, self.comboDropDownMovement],
-                                                    [None, self.StartButton, self.resetNeedleButton],
-                                                    [None, self.camerabutton]])
+                                                    [None, self.StartButton, self.resetNeedleButton]])
     
+    
+    slicer.util.setDataProbeVisible(True)
+    slicer.util.setModuleHelpSectionVisible(False)
+    slicer.util.setModulePanelTitleVisible(False)
+    slicer.util.setPythonConsoleVisible(True)
+    slicer.util.setStatusBarVisible(True)
+    slicer.util.setToolbarsVisible(False)
+    slicer.util.setToolbarsVisible(True, [slicer.util.mainWindow().findChild(qt.QToolBar, "SequenceBrowserToolBar"),
+                                          slicer.util.mainWindow().findChild(qt.QToolBar, "MarkupsToolBar"),
+                                          ])
+
+
+    self.switchUserShortcut = qt.QShortcut(qt.QKeySequence("Ctrl+B"), slicer.util.mainWindow())
+    self.switchUserShortcut.connect('activated()', self.switchUser)
+
+    defaultView = "Two Top Three Bottom"
+
+    self.currentLayout = max(slicer.app.layoutManager().layout, self.currentLayout)
+
+    slicer.app.layoutManager().layoutLogic().GetLayoutNode().AddLayoutDescription(self.currentLayout + 1,
+                                                                                  layouts.VIEW_MAP[defaultView][0]("12345"))
+    slicer.app.layoutManager().setLayout(self.currentLayout + 1)
+    self.currentLayout += 1
+    slicer.mrmlScene.Clear(False)
+    slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutNone)
+
+    print(self.currentLayout)
+  
+  def validateOrder(self, text):
+    regex = re.compile(f"[1-{self.viewSelectedLayout[1]}]*")
+    match = regex.fullmatch(text)
+    if match:
+      seen = []
+      for char in text:
+         if char in seen:
+            return False
+         seen.append(char)
+      return True
+    else:
+      return False
+
+  def onOrderSelectEnter(self):
+    inputText = self.orderSelect.text
+    if self.viewSelected and self.validateOrder(inputText) and len(inputText) == self.viewSelectedLayout[1]:
+      self.currentLayout = max(slicer.app.layoutManager().layout, self.currentLayout)
+      slicer.app.layoutManager().layoutLogic().GetLayoutNode().AddLayoutDescription(self.currentLayout + 1,
+                                                                                    self.viewSelectedLayout[0](inputText))
+      slicer.app.layoutManager().setLayout(self.currentLayout + 1)
+      self.currentLayout += 1
+      print(self.currentLayout)
+    elif not inputText == "":
+      print("Illegal Input!")
+
+  def onDropDownViewSelect(self, index):
+    text = self.dropDownViewSelector.itemText(index)
+    if text == "":
+      self.viewSelected = False
+      self.viewSelectedLayout = layouts.VIEW_MAP[text]
+      self.orderSelect.setMaxLength(self.viewSelectedLayout[1])
+      slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutNone)
+    else:
+      self.viewSelectedLayout = layouts.VIEW_MAP[text]
+      self.orderSelect.setMaxLength(self.viewSelectedLayout[1])
+      self.viewSelected = True
+      self.onOrderSelectEnter()
+
+
+  def switchUser(self):
+    print("ctrl b")
+    if self.userSwitched:
+      slicer.util.setMenuBarsVisible(True)
+      slicer.util.mainWindow().findChild(qt.QWidget, 'PanelDockWidget').setVisible(True)
+      slicer.util.setToolbarsVisible(True,[slicer.util.mainWindow().findChild(qt.QToolBar, "SequenceBrowserToolBar"),
+                                           slicer.util.mainWindow().findChild(qt.QToolBar, "MarkupsToolBar"),
+                                           ])
+      slicer.util.setDataProbeVisible(True)
+      slicer.util.setModuleHelpSectionVisible(False)
+      slicer.util.setModulePanelTitleVisible(False)
+      slicer.util.setPythonConsoleVisible(True)
+      slicer.util.setStatusBarVisible(True)
+      self.userSwitched = False
+    else:
+      slicer.util.mainWindow().findChild(qt.QWidget, 'PanelDockWidget').setVisible(False)
+      slicer.util.setMenuBarsVisible(False)
+      slicer.util.setDataProbeVisible(False)
+      slicer.util.setModuleHelpSectionVisible(False)
+      slicer.util.setModulePanelTitleVisible(False)
+      slicer.util.setPythonConsoleVisible(False)
+      slicer.util.setStatusBarVisible(False)
+      slicer.util.setToolbarsVisible(False)
+      self.userSwitched = True
+
+    
+
 
 
   def createHLayout(self, elements):
@@ -323,12 +439,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
   def onClearEnvironmentClicked(self):
 
+
     slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
     
     self.dropDownMovement.setCurrentIndex(0)
     self.streamingCheckBox.setChecked(False)
-    self.initVariables()
 
+    self.initVariables()
     self.needleSettings.enabled = False
     self.streamingCheckBox.enabled = False
     self.StartButton.enabled = False
@@ -338,6 +455,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.loadEnvironmentButton.enabled = True
 
     self.regionColorTimer.stop()
+
+    slicer.mrmlScene.Clear(False)
 
   #create vtk objects representing parts of the environment
   def onLoadEnvironmentClicked(self):
@@ -352,56 +471,57 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.createInsertionRegion() #cylinder
     self.createInsertionAngle() #cone
     self.createPlan() #line object
-    self.createNeedle() #cylinder?
     self.createGoal() #fiducial  
 
     #Set camera and bounding box initial positions
     camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
+    camera.SetPosition(0,0,0)
+    camera.SetViewUp(0,0,1)
+    camera.SetFocalPoint(0,0,0)
 
-    print(f"camera 1 init pos {camera.GetPosition()}")
-    print(f"camera 1 init viewup {camera.GetViewUp()}")
-    print(f"camera 1 init focal {camera.GetFocalPoint()}")
+    # print(f"camera 1 init pos {camera.GetPosition()}")
+    # print(f"camera 1 init viewup {camera.GetViewUp()}")
+    # print(f"camera 1 init focal {camera.GetFocalPoint()} \n")
 
     camera.SetPosition([225.0, -929.8879627522049, 114.1622183434929])
     camera.SetViewUp(0,0,1)
 
-    print(f"camera 1 set pos {camera.GetPosition()}")
-    print(f"camera 1 set viewup {camera.GetViewUp()}")
-    print(f"camera 1 set focal {camera.GetFocalPoint()}")
+    # print(f"camera 1 set pos {camera.GetPosition()}")
+    # print(f"camera 1 set viewup {camera.GetViewUp()}")
+    # print(f"camera 1 set focal {camera.GetFocalPoint()} \n")
 
     # slicer.app.layoutManager().threeDWidget(0).threeDView().renderWindow().GetRenderers().GetFirstRenderer().ResetCamera()
     # camera.SetFocalPoint(223.0, 148.0, 114.1622183434929)
     # slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
 
-    print(f"camera 1 pos after reset focal {camera.GetPosition()}")
-    print(f"camera 1 view after reset focal {camera.GetViewUp()}")
-    print(f"camera 1 focal after reset focal {camera.GetFocalPoint()}")
+    # slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutDual3DView)
 
-    slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutDual3DView)
-
-    print(f"camera 1 pos after set layout {camera.GetPosition()}")
-    print(f"camera 1 view after set layout {camera.GetViewUp()}")
-    print(f"camera 1 focal after set layout{camera.GetFocalPoint()}")
+    # print(f"camera 1 pos after set layout {camera.GetPosition()}")
+    # print(f"camera 1 view after set layout {camera.GetViewUp()}")
+    # print(f"camera 1 focal after set layout{camera.GetFocalPoint()} \n")
 
     camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
+    camera_2.SetPosition(0,0,0)
+    camera_2.SetViewUp(0,0,1)
+    camera_2.SetFocalPoint(0,0,0)
 
-    print(f"camera 1 pos after get 2 {camera.GetPosition()}")
-    print(f"camera 1 view after get 2 {camera.GetViewUp()}")
-    print(f"camera 1 focal after get 2 {camera.GetFocalPoint()}")
+    # print(f"camera 1 pos after get 2 {camera.GetPosition()}")
+    # print(f"camera 1 view after get 2 {camera.GetViewUp()}")
+    # print(f"camera 1 focal after get 2 {camera.GetFocalPoint()} \n")
 
-    print(f"camera 2 pos after get {camera_2.GetPosition()}")
-    print(f"camera 2 view after get {camera_2.GetViewUp()}")
-    print(f"camera 2 focal after get{camera_2.GetFocalPoint()}")
+    # print(f"camera 2 pos after get {camera_2.GetPosition()}")
+    # print(f"camera 2 view after get {camera_2.GetViewUp()}")
+    # print(f"camera 2 focal after get{camera_2.GetFocalPoint()} \n")
 
     camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
 
-    print(f"camera 1 pos after setobs 2 {camera.GetPosition()}")
-    print(f"camera 1 view after setobs 2 {camera.GetViewUp()}")
-    print(f"camera 1 focal after setobs 2 {camera.GetFocalPoint()}")
+    # print(f"camera 1 pos after setobs 2 {camera.GetPosition()}")
+    # print(f"camera 1 view after setobs 2 {camera.GetViewUp()}")
+    # print(f"camera 1 focal after setobs 2 {camera.GetFocalPoint()} \n")
 
-    print(f"camera 2 pos after setobs {camera_2.GetPosition()}")
-    print(f"camera 2 view after setobs {camera_2.GetViewUp()}")
-    print(f"camera 2 focal after setobs{camera_2.GetFocalPoint()}")
+    # print(f"camera 2 pos after setobs {camera_2.GetPosition()}")
+    # print(f"camera 2 view after setobs {camera_2.GetViewUp()}")
+    # print(f"camera 2 focal after setobs{camera_2.GetFocalPoint()} \n")
 
 
     initial_position = np.eye(4)
@@ -411,29 +531,20 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     # camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
 
-    print(f"camera 1 pos after move need {camera.GetPosition()}")
-    print(f"camera 1 view after move need {camera.GetViewUp()}")
-    print(f"camera 1 focal after move need{camera.GetFocalPoint()}")
+    # print(f"camera 1 pos after move need {camera.GetPosition()}")
+    # print(f"camera 1 view after move need {camera.GetViewUp()}")
+    # print(f"camera 1 focal after move need{camera.GetFocalPoint()} \n")
 
-    print(f"camera 2 pos after move need {camera_2.GetPosition()}")
-    print(f"camera 2 view after move need {camera_2.GetViewUp()}")
-    print(f"camera 2 focal after move need{camera_2.GetFocalPoint()}")
+    # print(f"camera 2 pos after move need {camera_2.GetPosition()}")
+    # print(f"camera 2 view after move need {camera_2.GetViewUp()}")
+    # print(f"camera 2 focal after move need{camera_2.GetFocalPoint()} \n")
 
 
     origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
-    # self.oncamerabutton()
 
 
     camera_2.SetPosition(225.20335390291237, 144.45305645449645, 249.6013194165112)
     camera_2.SetViewUp(0.007225311558870536, -0.9972196262444875, -0.07416745853595437)
-
-    print(f"camera 1 pos after set 2 {camera.GetPosition()}")
-    print(f"camera 1 view after set 2 {camera.GetViewUp()}")
-    print(f"camera 1 focal after set 2{camera.GetFocalPoint()}")
-
-    print(f"camera 2 pos after set 2 {camera_2.GetPosition()}")
-    print(f"camera 2 view after set 2 {camera_2.GetViewUp()}")
-    print(f"camera 2 focal after set 2{camera_2.GetFocalPoint()}")
 
     self.needleSettings.enabled = True
     self.streamingCheckBox.enabled = True
@@ -450,16 +561,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(1).threeDController().resetFocalPoint()
-
+    slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(3).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(4).threeDController().resetFocalPoint()
 
     print(f"camera 1 pos end {camera.GetPosition()}")
     print(f"camera 1 view end {camera.GetViewUp()}")
-    print(f"camera 1 focal end{camera.GetFocalPoint()}")
+    print(f"camera 1 focal end{camera.GetFocalPoint()} \n")
 
     print(f"camera 2 pos end {camera_2.GetPosition()}")
     print(f"camera 2 view end {camera_2.GetViewUp()}")
-    print(f"camera 2 focal end{camera_2.GetFocalPoint()}")
-
+    print(f"camera 2 focal end{camera_2.GetFocalPoint()} \n")
 
 
 
