@@ -126,6 +126,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.streamingCheckBox.setChecked(False)
     self.streamingCheckBox.enabled = False
     self.streamingCheckBox.toggled.connect(self.onStreamingCheck)
+    self.streamingCheckBoxWidget = qt.QWidget()
+    self.streamingCheckBoxLayout = qt.QHBoxLayout(self.streamingCheckBoxWidget)
+    self.streamingCheckBoxLayout.addWidget(self.streamingCheckBox)
+    self.streamingCheckBoxLayout.setAlignment(self.streamingCheckBox, qt.Qt.AlignCenter)
 
     self.comboDropDownMovement = qt.QWidget()
     self.comboDropDownMovementLayout = qt.QHBoxLayout(self.comboDropDownMovement)
@@ -138,14 +142,14 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.resetNeedleButton.connect('clicked(bool)', self.onResetNeedleButton)
 
     self.dropDownViewSelector = qt.QComboBox()
-    self.dropDownViewSelector.setStyleSheet("margin-left:100%; margin-right:100%;")
+    # self.dropDownViewSelector.setStyleSheet("margin-left:100%; margin-right:100%;")
     self.dropDownViewSelectorLabel = qt.QLabel("Select View: ")
     self.dropDownViewSelectorLabel.enabled = True
     self.dropDownViewSelectorLabel.setAlignment(qt.Qt.AlignCenter)
     self.dropDownViewSelector.enabled = True
-    self.dropDownViewSelector.addItems(["","Two Top Three Bottom", "Three Top Two Bottom"])
-    for index in range(self.dropDownViewSelector.model().rowCount()):
-      self.dropDownViewSelector.setItemData(index, qt.Qt.AlignCenter, qt.Qt.TextAlignmentRole)
+    self.dropDownViewSelector.addItems(list(layouts.VIEW_MAP.keys()))
+    # for index in range(self.dropDownViewSelector.model().rowCount()):
+    #   self.dropDownViewSelector.setItemData(index, qt.Qt.AlignCenter, qt.Qt.TextAlignmentRole)
     self.dropDownViewSelector.currentIndexChanged.connect(self.onDropDownViewSelect)
 
     self.orderSelect = qt.QLineEdit()
@@ -153,18 +157,27 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.orderSelect.setMaxLength(self.viewSelectedLayout[1])
     self.orderSelect.returnPressed.connect(self.onOrderSelectEnter)
 
+    self.comboViewSelectOrder = qt.QWidget()
+    self.comboViewSelectOrderLayout = qt.QHBoxLayout(self.comboViewSelectOrder)
+    self.comboViewSelectOrderLayout.addWidget(self.dropDownViewSelector)
+    self.comboViewSelectOrderLayout.addWidget(self.orderSelect)
+    self.comboViewSelectOrderLayout.setStretch(0,1)
+    self.comboViewSelectOrderLayout.setStretch(1,1)
 
-
+    self.camerabutton = qt.QPushButton("camera")
+    self.camerabutton.enabled = True
+    self.camerabutton.connect('clicked(bool)', self.oncamerabutton)
 
     self.userStudySection = self.newSection("User Study")
     self.userStudyLayout = self.newHItemLayout(self.userStudySection,
                                                    [[None, self.dropDownViewSelectorLabel, self.orderSelectLabel],
-                                                    [None, self.dropDownViewSelector, self.orderSelect],
+                                                    [None, self.comboViewSelectOrder],
                                                     [None, self.loadEnvironmentButton],
                                                     [None, self.clearEnvironmentButton],
                                                     [None, self.needleSettings],
-                                                    [None, self.streamingCheckBox, self.comboDropDownMovement],
-                                                    [None, self.StartButton, self.resetNeedleButton]])
+                                                    [None, self.streamingCheckBoxWidget, self.comboDropDownMovement],
+                                                    [None, self.StartButton, self.resetNeedleButton],
+                                                    [None, self.camerabutton]])
     
     
     slicer.util.setDataProbeVisible(True)
@@ -181,7 +194,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.switchUserShortcut = qt.QShortcut(qt.QKeySequence("Ctrl+B"), slicer.util.mainWindow())
     self.switchUserShortcut.connect('activated()', self.switchUser)
 
-    defaultView = "Two Top Three Bottom"
+    defaultView = "(5) Two Top Three Bottom"
 
     self.currentLayout = max(slicer.app.layoutManager().layout, self.currentLayout)
 
@@ -193,9 +206,19 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutNone)
 
     print(self.currentLayout)
+
+    interval = 20
+
+    self.regionColorTimer = qt.QTimer()
+    self.regionColorTimer.setInterval(interval)
+    self.regionColorTimer.connect('timeout()', self.updateRegionColor)
+
+    self.startAngleColorTimer = qt.QTimer()
+    self.startAngleColorTimer.setInterval(interval)
+    self.startAngleColorTimer.connect('timeout()', self.updateAngleColor)
   
   def validateOrder(self, text):
-    regex = re.compile(f"[1-{self.viewSelectedLayout[1]}]*")
+    regex = re.compile(f"[1-5]*")
     match = regex.fullmatch(text)
     if match:
       seen = []
@@ -216,8 +239,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
       slicer.app.layoutManager().setLayout(self.currentLayout + 1)
       self.currentLayout += 1
       print(self.currentLayout)
+      self.orderSelect.setStyleSheet("border: 1px solid green;")
+      timer = qt.QTimer()
+      timer.singleShot(1000, self.changeOrderColor)
     elif not inputText == "":
-      print("Illegal Input!")
+      self.orderSelect.setStyleSheet("border: 1px solid red;")
+      timer = qt.QTimer()
+      timer.singleShot(1000, self.changeOrderColor)
+
+  def changeOrderColor(self):
+    self.orderSelect.setStyleSheet("")
+    
 
   def onDropDownViewSelect(self, index):
     text = self.dropDownViewSelector.itemText(index)
@@ -246,6 +278,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
       slicer.util.setModulePanelTitleVisible(False)
       slicer.util.setPythonConsoleVisible(True)
       slicer.util.setStatusBarVisible(True)
+      slicer.util.setViewControllersVisible(True)
       self.userSwitched = False
     else:
       slicer.util.mainWindow().findChild(qt.QWidget, 'PanelDockWidget').setVisible(False)
@@ -256,6 +289,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
       slicer.util.setPythonConsoleVisible(False)
       slicer.util.setStatusBarVisible(False)
       slicer.util.setToolbarsVisible(False)
+      slicer.util.setViewControllersVisible(False)
       self.userSwitched = True
 
     
@@ -439,10 +473,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
   def onClearEnvironmentClicked(self):
 
-
     slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
     
     self.dropDownMovement.setCurrentIndex(0)
+    self.dropDownViewSelector.setCurrentIndex(0)
     self.streamingCheckBox.setChecked(False)
 
     self.initVariables()
@@ -455,6 +489,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.loadEnvironmentButton.enabled = True
 
     self.regionColorTimer.stop()
+    self.startAngleColorTimer.stop()
 
     slicer.mrmlScene.Clear(False)
 
@@ -473,118 +508,85 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.createPlan() #line object
     self.createGoal() #fiducial  
 
-    #Set camera and bounding box initial positions
-    camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
-    camera.SetPosition(0,0,0)
-    camera.SetViewUp(0,0,1)
-    camera.SetFocalPoint(0,0,0)
-
-    # print(f"camera 1 init pos {camera.GetPosition()}")
-    # print(f"camera 1 init viewup {camera.GetViewUp()}")
-    # print(f"camera 1 init focal {camera.GetFocalPoint()} \n")
-
-    camera.SetPosition([225.0, -929.8879627522049, 114.1622183434929])
-    camera.SetViewUp(0,0,1)
-
-    # print(f"camera 1 set pos {camera.GetPosition()}")
-    # print(f"camera 1 set viewup {camera.GetViewUp()}")
-    # print(f"camera 1 set focal {camera.GetFocalPoint()} \n")
-
-    # slicer.app.layoutManager().threeDWidget(0).threeDView().renderWindow().GetRenderers().GetFirstRenderer().ResetCamera()
-    # camera.SetFocalPoint(223.0, 148.0, 114.1622183434929)
-    # slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
-
-    # slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutDual3DView)
-
-    # print(f"camera 1 pos after set layout {camera.GetPosition()}")
-    # print(f"camera 1 view after set layout {camera.GetViewUp()}")
-    # print(f"camera 1 focal after set layout{camera.GetFocalPoint()} \n")
-
-    camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
-    camera_2.SetPosition(0,0,0)
-    camera_2.SetViewUp(0,0,1)
-    camera_2.SetFocalPoint(0,0,0)
-
-    # print(f"camera 1 pos after get 2 {camera.GetPosition()}")
-    # print(f"camera 1 view after get 2 {camera.GetViewUp()}")
-    # print(f"camera 1 focal after get 2 {camera.GetFocalPoint()} \n")
-
-    # print(f"camera 2 pos after get {camera_2.GetPosition()}")
-    # print(f"camera 2 view after get {camera_2.GetViewUp()}")
-    # print(f"camera 2 focal after get{camera_2.GetFocalPoint()} \n")
-
-    camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
-
-    # print(f"camera 1 pos after setobs 2 {camera.GetPosition()}")
-    # print(f"camera 1 view after setobs 2 {camera.GetViewUp()}")
-    # print(f"camera 1 focal after setobs 2 {camera.GetFocalPoint()} \n")
-
-    # print(f"camera 2 pos after setobs {camera_2.GetPosition()}")
-    # print(f"camera 2 view after setobs {camera_2.GetViewUp()}")
-    # print(f"camera 2 focal after setobs{camera_2.GetFocalPoint()} \n")
-
-
-    initial_position = np.eye(4)
-    initial_position[:3,3] = [225.0, 150.0, 175.0]
-
-    self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(initial_position))
-
-    # camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
-
-    # print(f"camera 1 pos after move need {camera.GetPosition()}")
-    # print(f"camera 1 view after move need {camera.GetViewUp()}")
-    # print(f"camera 1 focal after move need{camera.GetFocalPoint()} \n")
-
-    # print(f"camera 2 pos after move need {camera_2.GetPosition()}")
-    # print(f"camera 2 view after move need {camera_2.GetViewUp()}")
-    # print(f"camera 2 focal after move need{camera_2.GetFocalPoint()} \n")
-
-
-    origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
-
-
-    camera_2.SetPosition(225.20335390291237, 144.45305645449645, 249.6013194165112)
-    camera_2.SetViewUp(0.007225311558870536, -0.9972196262444875, -0.07416745853595437)
-
     self.needleSettings.enabled = True
     self.streamingCheckBox.enabled = True
     self.StartButton.enabled = False
     self.resetNeedleButton.enabled = False
     self.dropDownMovement.enabled = True
     self.dropDownMovementLabel.enabled = True
-
-    interval = 20
-    self.regionColorTimer = qt.QTimer()
-    self.regionColorTimer.setInterval(interval)
-    self.regionColorTimer.connect('timeout()', self.updateRegionColor)
+    
     self.regionColorTimer.start()
+    self.startAngleColorTimer.start()
 
+    self.setCameras()
+
+
+  def setCameras(self):
     slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(1).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(3).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(4).threeDController().resetFocalPoint()
 
-    print(f"camera 1 pos end {camera.GetPosition()}")
-    print(f"camera 1 view end {camera.GetViewUp()}")
-    print(f"camera 1 focal end{camera.GetFocalPoint()} \n")
+    camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
+    camera.SetPosition(0,0,0); camera.SetViewUp(0,0,1); camera.SetFocalPoint(0,0,0)
+    camera.SetPosition([238.1766362365439, -723.843349250591, 367.68655777960373]); camera.SetViewUp(0,0,1)
 
-    print(f"camera 2 pos end {camera_2.GetPosition()}")
-    print(f"camera 2 view end {camera_2.GetViewUp()}")
-    print(f"camera 2 focal end{camera_2.GetFocalPoint()} \n")
+    camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
+    camera_2.SetPosition(0,0,0); camera_2.SetViewUp(0,0,1); camera_2.SetFocalPoint(0,0,0)
 
+    camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
+    camera_3.SetPosition(0,0,0); camera_3.SetViewUp(0,0,1); camera_3.SetFocalPoint(0,0,0)
+    insertionPoseTransform = self.getTransformMat(self.insertionPose[2].GetName())
+    view_up_pose = insertionPoseTransform[:3,1]
+    insert_position = insertionPoseTransform[:3,3]
+    camera_3.SetViewUp(-view_up_pose[0],-view_up_pose[1],-view_up_pose[2])
 
+    translation_factor = 2
+    translation_vector = self.insertionPoseLength * translation_factor * insertionPoseTransform[:3,2]
+    new_pos = insert_position + translation_vector
 
+    camera_3.SetPosition(new_pos[0],new_pos[1],new_pos[2])
+
+    handle_views = []
+    for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
+      if not view.GetName() == "View3":
+        handle_views.append(view.GetID())
+
+    self.compositeNeedleHandle[1].SetViewNodeIDs(handle_views)
+
+    camera_4 = slicer.mrmlScene.GetFirstNodeByName("Camera_3")
+    camera_4.SetPosition(-502.6824440718432, 159.1161055461255, 125.99996646422413)
+    camera_4.SetViewUp(0,0,1); camera_4.SetFocalPoint(0,0,0)
+
+    camera_5 = slicer.mrmlScene.GetFirstNodeByName("Camera_4")
+    camera_5.SetPosition(225.0, 138.6358800077325, 790.8131993123097)
+    camera_5.SetViewUp(0,1,0); camera_5.SetFocalPoint(0,0,0)
+
+    camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
+    initial_position = np.eye(4); initial_position[:3,3] = [225.0, 150.0, 175.0]
+    self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(initial_position))
+    # origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
+
+    camera_2.SetPosition(225.20335390291237, 144.45305645449645, 249.6013194165112)
+    camera_2.SetViewUp(0.007225311558870536, -0.9972196262444875, -0.07416745853595437)
+
+    
+    slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(1).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(3).threeDController().resetFocalPoint()
+    slicer.app.layoutManager().threeDWidget(4).threeDController().resetFocalPoint()
+
+    camera_3.SetFocalPoint(insert_position)
+     
   def oncamerabutton(self):
      print(
-          ("Position" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetPosition()) + "\n"),
-          ("ViewUp" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetViewUp()) + "\n"),
-          ("ViewAngle " + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetViewAngle()) + "\n"),
-          ("FocalPoint" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_1").GetFocalPoint()) + "\n"),
+          ("Position" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetPosition()) + "\n"),
+          ("ViewUp" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetViewUp()) + "\n"),
+          ("ViewAngle " + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetViewAngle()) + "\n"),
+          ("FocalPoint" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetFocalPoint()) + "\n"),
           )
-     
-  
-
     
   def createCompositeNeedle(self):
     opacity = .6
@@ -671,7 +673,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     transform = np.eye(4)
 
-    theta = np.radians(90-pose_data[5])
+    theta = np.radians(pose_data[5])
     phi = np.radians(pose_data[6])
 
     #X axis rotation matrix
@@ -701,9 +703,12 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     color = [0, 0, 1]
     opacity = .3
 
-    model = self.makeCylinder(pose_data[3], pose_data[4])
+    self.insertionPoseLength = pose_data[3]
 
-    self.initModel(model, transform, "StartPose", color, opacity)
+    model = self.makeCylinderLine([0,0,0], pose_data[3], pose_data[4])
+    # model = self.makeCylinder(pose_data[3], pose_data[4])
+
+    self.insertionPose = self.initModel(model, transform, "StartPose", color, opacity)
   
   def createInsertionRegion(self):
     region_data = self.loadDataFromFile(self.inputFolder + "region.txt", ignoreFirstLines=1)
@@ -767,9 +772,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     color = [.2, .8, .1]
     opacity = .2
 
-    model = self.makeCone(angle_data[3], angle_data[4], 10)
+    self.coloredAngleModel = self.makeCone(angle_data[3], angle_data[4], 10)
 
-    self.initModel(model, transform, "InsertionAngle", color, opacity)
+    self.coloredAngle = self.initModel(self.coloredAngleModel, transform, "InsertionAngle", color, opacity)
 
   def createNeedle(self):
     """Given .txt file, creates needle at desired point"""
@@ -1041,41 +1046,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
   def rodriguesRotation(self, normal_vec, so, beta):
         so_rot = (np.cos(beta) * so) + (np.sin(beta) * np.cross(normal_vec, so)) + ((1 - np.cos(beta)) * np.dot(normal_vec, so) * normal_vec)
         return so_rot
-
-  def colorMap(self, n):
-    color_map = np.array([
-                          [1.000, 0.000, 0.000],
-                          [1.000, 0.071, 0.000],
-                          [1.000, 0.143, 0.000],
-                          [1.000, 0.214, 0.000],
-                          [1.000, 0.286, 0.000],
-                          [1.000, 0.357, 0.000],
-                          [1.000, 0.429, 0.000],
-                          [1.000, 0.500, 0.000],
-                          [1.000, 0.571, 0.000],
-                          [1.000, 0.643, 0.000],
-                          [1.000, 0.714, 0.000],
-                          [1.000, 0.786, 0.000],
-                          [1.000, 0.857, 0.000],
-                          [1.000, 0.929, 0.000],
-                          [1.000, 1.000, 0.000],
-                          [0.933, 1.000, 0.000],
-                          [0.867, 1.000, 0.000],
-                          [0.800, 1.000, 0.000],
-                          [0.733, 1.000, 0.000],
-                          [0.667, 1.000, 0.000],
-                          [0.600, 1.000, 0.000],
-                          [0.533, 1.000, 0.000],
-                          [0.467, 1.000, 0.000],
-                          [0.400, 1.000, 0.000],
-                          [0.333, 1.000, 0.000],
-                          [0.267, 1.000, 0.000],
-                          [0.200, 1.000, 0.000],
-                          [0.133, 1.000, 0.000],
-                          [0.067, 1.000, 0.000],
-                          [0.000, 1.000, 0.000]
-                         ])
-    return color_map[n]
   
   def distance(self, T1, T2):
     """Given two transform nodes, calculates distance between their reference points"""
@@ -1094,15 +1064,38 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     distance = self.distance(needle_pos, region_pos)
 
-    color_map_length = 29
+    color_map_index_length = layouts.colorMap(0)[1] - 1
 
     if distance > self.coloredRegionRadius:
       color = [1, 0, 0]
     else:
-      colorPos = int((1 - distance/self.coloredRegionRadius) * color_map_length)
-      color = self.colorMap(colorPos)
+      colorPos = int((1 - distance/self.coloredRegionRadius) * color_map_index_length)
+      color = layouts.colorMap(colorPos)[0]
 
     region_display.SetColor(color)
+
+  def updateAngleColor(self):
+    cone_direction = self.getTransformMat(self.coloredAngle[2].GetName())[:3,2]
+    needle_direction = self.getTransformMat(self.composite_needle.GetName())[:3,2]
+
+    cos_theta = np.dot(cone_direction, needle_direction)/np.linalg.norm(cone_direction)*np.linalg.norm(needle_direction)
+    angle_difference = np.degrees(np.arccos(cos_theta))
+
+    color_map_index_length = layouts.colorMap(0)[1] - 1
+
+    cone_angle = self.coloredAngleModel.GetAngle()
+
+    # print(angle_difference)
+
+    if angle_difference > cone_angle:
+      color = [1,0,0]
+    else:
+      colorPos = int((1 - angle_difference/cone_angle) * color_map_index_length)
+      color = layouts.colorMap(colorPos)[0]
+
+    self.coloredAngle[1].SetColor(color)
+
+
 
   def loadDataFromFile(self, fullPath, ignoreFirstLines=1):
         print("Loading points from " + str(fullPath))
