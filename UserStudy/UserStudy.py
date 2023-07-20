@@ -58,6 +58,14 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.logic = UserStudyLogic()
     self.inputFolder = os.path.dirname(os.path.abspath(__file__)) + "/Resources/Data/" #Hardcode input path here for testing purposes
     self.composite_needle = None
+    self.eventCount = 0
+
+    self.coloredAngle = []
+    self.coloredAngleModel = None
+    self.coloredRegion = []
+    self.coloredRegionRadius = None
+    self.insertionPose = []
+    self.insertionPoseLength = None
 
     print(self.inputFolder)
 
@@ -216,6 +224,88 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.startAngleColorTimer = qt.QTimer()
     self.startAngleColorTimer.setInterval(interval)
     self.startAngleColorTimer.connect('timeout()', self.updateAngleColor)
+
+    self.spaceBarPress = qt.QShortcut(qt.QKeySequence("Space"), slicer.util.mainWindow())
+    self.spaceBarPress.connect('activated()', self.eventChange)
+
+  def eventChange(self):
+    flag = (self.eventCount<15)
+    
+    if self.eventCount == 0:
+      self.dropDownViewSelector.setCurrentIndex(8)
+      self.orderSelect.setText("1245")
+      self.onOrderSelectEnter()
+      self.resetAngle()
+
+    if self.eventCount<5:
+      self.resetRegion()
+      self.createInsertionRegion(self.eventCount, flag)
+      self.regionColorTimer.start()
+    
+    if self.eventCount == 5:
+      self.resetRegion()
+      self.dropDownViewSelector.setCurrentIndex(13)
+      self.orderSelect.setText("12345")
+      self.onOrderSelectEnter()
+
+    if self.eventCount<10 and self.eventCount>=5:
+      self.resetAngle()
+      self.createInsertionAngle(self.eventCount-5)
+      self.createInsertionPose(self.eventCount-5)
+      self.setCamera3()
+      self.startAngleColorTimer.start()
+    
+    if self.eventCount<15 and self.eventCount>=10:
+      self.resetRegion()
+      self.createInsertionRegion(self.eventCount-5, flag)
+      self.resetAngle()
+      self.createInsertionAngle(self.eventCount-5)
+      self.createInsertionPose(self.eventCount-5)
+      self.setCamera3()
+      self.regionColorTimer.start()
+      self.startAngleColorTimer.start()
+
+    if self.eventCount<30 and self.eventCount>=15:
+      self.phaseTwo()
+      self.resetRegion()
+      self.createInsertionRegion(self.eventCount-5, flag)
+      self.resetAngle()
+      self.createInsertionAngle(self.eventCount-5)
+      self.createInsertionPose(self.eventCount-5)
+      self.setCamera3()
+      self.regionColorTimer.start()
+      self.startAngleColorTimer.start()
+    
+    if self.eventCount == 30:
+      self.dropDownViewSelector.setCurrentIndex(0)
+      
+    self.eventCount += 1
+      
+
+  def resetRegion(self):
+    self.regionColorTimer.stop()
+    for node in self.coloredRegion:
+      if slicer.mrmlScene.IsNodePresent(node):
+        slicer.mrmlScene.RemoveNode(node)
+        node = None
+    self.coloredRegion = []
+    self.coloredRegionRadius = None
+  
+  def resetAngle(self):
+    self.startAngleColorTimer.stop()
+    for node in self.coloredAngle:
+      if slicer.mrmlScene.IsNodePresent(node):
+        slicer.mrmlScene.RemoveNode(node)
+        node = None
+    for node in self.insertionPose:
+      if slicer.mrmlScene.IsNodePresent(node):
+        slicer.mrmlScene.RemoveNode(node)
+        node = None
+    self.coloredAngle = []
+    self.insertionPose = []
+    self.insertionPoseLength = None
+    
+
   
   def validateOrder(self, text):
     regex = re.compile(f"[1-5]*")
@@ -496,16 +586,20 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
   #create vtk objects representing parts of the environment
   def onLoadEnvironmentClicked(self):
 
+    self.dropDownViewSelector.setCurrentIndex(1)
+    self.orderSelect.setText("1")
+    self.onOrderSelectEnter()
+
     self.loadEnvironmentButton.enabled = False
     self.clearEnvironmentButton.enabled = True
 
     self.createCompositeNeedle()
     self.createTissue() #cuboid
     self.createObstacles() #spheres
-    self.createInsertionPose()  #cylinder
-    self.createInsertionRegion() #cylinder
-    self.createInsertionAngle() #cone
-    self.createPlan() #line object
+    # self.createInsertionPose(0)  #cylinder
+    # self.createInsertionRegion(0,False) #cylinder
+    # self.createInsertionAngle(0) #cone
+    # self.createPlan() #line object
     self.createGoal() #fiducial  
 
     self.needleSettings.enabled = True
@@ -515,10 +609,25 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     self.dropDownMovement.enabled = True
     self.dropDownMovementLabel.enabled = True
     
-    self.regionColorTimer.start()
-    self.startAngleColorTimer.start()
+    # self.regionColorTimer.start()
+    # self.startAngleColorTimer.start()
 
     self.setCameras()
+
+    self.phaseOne()
+    # self.phaseTwo()
+
+  def phaseOne(self):
+    self.tissue[1].VisibilityOff()
+    self.obstacle1[1].VisibilityOff()
+    self.obstacle2[1].VisibilityOff()
+    self.goal.SetDisplayVisibility(False)
+  
+  def phaseTwo(self):
+    self.tissue[1].VisibilityOn()
+    self.obstacle1[1].VisibilityOn()
+    self.obstacle2[1].VisibilityOn()
+    self.goal.SetDisplayVisibility(True)
 
 
   def setCameras(self):
@@ -534,19 +643,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
     camera_2.SetPosition(0,0,0); camera_2.SetViewUp(0,0,1); camera_2.SetFocalPoint(0,0,0)
-
-    camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
-    camera_3.SetPosition(0,0,0); camera_3.SetViewUp(0,0,1); camera_3.SetFocalPoint(0,0,0)
-    insertionPoseTransform = self.getTransformMat(self.insertionPose[2].GetName())
-    view_up_pose = insertionPoseTransform[:3,1]
-    insert_position = insertionPoseTransform[:3,3]
-    camera_3.SetViewUp(-view_up_pose[0],-view_up_pose[1],-view_up_pose[2])
-
-    translation_factor = 2
-    translation_vector = self.insertionPoseLength * translation_factor * insertionPoseTransform[:3,2]
-    new_pos = insert_position + translation_vector
-
-    camera_3.SetPosition(new_pos[0],new_pos[1],new_pos[2])
 
     handle_views = []
     for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
@@ -571,15 +667,27 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     camera_2.SetPosition(225.20335390291237, 144.45305645449645, 249.6013194165112)
     camera_2.SetViewUp(0.007225311558870536, -0.9972196262444875, -0.07416745853595437)
 
-    
     slicer.app.layoutManager().threeDWidget(0).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(1).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(3).threeDController().resetFocalPoint()
     slicer.app.layoutManager().threeDWidget(4).threeDController().resetFocalPoint()
 
+  def setCamera3(self):
+    # slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
+    camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
+    camera_3.SetPosition(0,0,0); camera_3.SetViewUp(0,0,1); camera_3.SetFocalPoint(0,0,0)
+    insertionPoseTransform = self.getTransformMat(self.insertionPose[2].GetName())
+    view_up_pose = insertionPoseTransform[:3,1]
+    insert_position = insertionPoseTransform[:3,3]
+    camera_3.SetViewUp(-view_up_pose[0],-view_up_pose[1],-view_up_pose[2])
+    translation_factor = 2
+    translation_vector = self.insertionPoseLength * translation_factor * insertionPoseTransform[:3,2]
+    new_pos = insert_position + translation_vector
+    camera_3.SetPosition(new_pos[0],new_pos[1],new_pos[2])
+    # slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
     camera_3.SetFocalPoint(insert_position)
-     
+
   def oncamerabutton(self):
      print(
           ("Position" + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetPosition()) + "\n"),
@@ -639,7 +747,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     model = self.makeCube(size[0],size[1], size[2])
     color = [0.8, 0.8, 0.6]
     opacity = 0.2
-    self.initModel(model, transform, "Tissue", color, opacity)
+    self.tissue = self.initModel(model, transform, "Tissue", color, opacity)
 
   #create spherical obstacles
   def createObstacles(self):
@@ -663,12 +771,14 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     obstacle1_model = self.makeSphere(obstacle1_data[3])
     obstacle2_model = self.makeSphere(obstacle2_data[3])
     
-    self.initModel(obstacle1_model, obstacle1_transform, "Obstacle1", color, opacity)
-    self.initModel(obstacle2_model, obstacle2_transform, "Obstacle2", color, opacity)
+    self.obstacle1 = self.initModel(obstacle1_model, obstacle1_transform, "Obstacle1", color, opacity)
+    self.obstacle2 = self.initModel(obstacle2_model, obstacle2_transform, "Obstacle2", color, opacity)
 
-  def createInsertionPose(self):
+    
+
+  def createInsertionPose(self, ignore_lines):
     """Given .txt file, creates pose at insertion point"""
-    pose_data = self.loadDataFromFile(self.inputFolder + "startpose.txt", ignoreFirstLines=1)
+    pose_data = self.loadDataFromFile(self.inputFolder + "startpose.txt", ignoreFirstLines=1+ignore_lines)
     pose_data = pose_data[0]
 
     transform = np.eye(4)
@@ -710,8 +820,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     self.insertionPose = self.initModel(model, transform, "StartPose", color, opacity)
   
-  def createInsertionRegion(self):
-    region_data = self.loadDataFromFile(self.inputFolder + "region.txt", ignoreFirstLines=1)
+  def createInsertionRegion(self, ignored_lines, flag):
+    """Creates insertion region, sphere or cylinder based on flag=true or flag=false"""
+    region_data = self.loadDataFromFile(self.inputFolder + "region.txt", ignoreFirstLines=1+ignored_lines)
     region_data = region_data[0]
 
     transform = np.eye(4)
@@ -730,15 +841,20 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     color = [117/255,157/255,230/255]
     opacity = .5
 
-    model = self.makeCylinder(.5, region_data[3])
+    radius = region_data[3]
+
+    model = self.makeCylinder(.5, radius)
+    if flag:
+      model = self.makeSphere(radius)
+    
 
     self.coloredRegionRadius = region_data[3]
 
     self.coloredRegion = self.initModel(model, transform, "InsertionRegion", color, opacity)
     
 
-  def createInsertionAngle(self):
-    angle_data = self.loadDataFromFile(self.inputFolder + "angle.txt", ignoreFirstLines=1)
+  def createInsertionAngle(self, ignore_lines):
+    angle_data = self.loadDataFromFile(self.inputFolder + "angle.txt", ignoreFirstLines=1+ignore_lines)
     angle_data = angle_data[0]
 
     transform = np.eye(4)
@@ -838,6 +954,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     fiducial_node.GetDisplayNode().SetSelectedColor([1, 0, 0])
     fiducial_node.SetDisplayVisibility(True)
     fiducial_node.AddControlPoint(goal[0], goal[1], goal[2], "Goal")
+    self.goal = fiducial_node
 
   def makeCube(self, size_x, size_y, size_z):
     cubeModel = vtk.vtkCubeSource()
@@ -1078,8 +1195,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     cone_direction = self.getTransformMat(self.coloredAngle[2].GetName())[:3,2]
     needle_direction = self.getTransformMat(self.composite_needle.GetName())[:3,2]
 
+    
     cos_theta = np.dot(cone_direction, needle_direction)/np.linalg.norm(cone_direction)*np.linalg.norm(needle_direction)
     angle_difference = np.degrees(np.arccos(cos_theta))
+    
+    # print(cos_theta)
+    
+    
 
     color_map_index_length = layouts.colorMap(0)[1] - 1
 
