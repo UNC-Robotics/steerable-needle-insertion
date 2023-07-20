@@ -1198,11 +1198,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     
     cos_theta = np.dot(cone_direction, needle_direction)/np.linalg.norm(cone_direction)*np.linalg.norm(needle_direction)
     angle_difference = np.degrees(np.arccos(cos_theta))
+        
     
-    # print(cos_theta)
-    
-    
-
     color_map_index_length = layouts.colorMap(0)[1] - 1
 
     cone_angle = self.coloredAngleModel.GetAngle()
@@ -1212,6 +1209,11 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     if angle_difference > cone_angle:
       color = [1,0,0]
     else:
+      # try:
+      #   colorPos = int((1 - angle_difference/cone_angle) * color_map_index_length)
+      #   color = layouts.colorMap(colorPos)[0]
+      # except ValueError:
+      #   print(f"1 - {angle_difference}/{cone_angle} * {color_map_index_length}")
       colorPos = int((1 - angle_difference/cone_angle) * color_map_index_length)
       color = layouts.colorMap(colorPos)[0]
 
