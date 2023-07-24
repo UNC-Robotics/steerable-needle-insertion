@@ -246,6 +246,16 @@ class LoadSegmentationsLogic(ScriptedLoadableModuleLogic):
   def cleanup(self):
     for s in self.segNodes:
       slicer.mrmlScene.RemoveNode(s)
+  
+  def loadSeg(self, workspace):
+
+    instance = LoadSegmentationsWidget()
+    
+    instance.onSetWorkSpaceClicked()
+
+    instance.onLoadSegmentationsButton()
+    
+    
 
 
 class LoadSegmentationsTest(ScriptedLoadableModuleTest):
