@@ -200,16 +200,12 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.comboViewSelectOrderLayout.setStretch(0, 1)
         self.comboViewSelectOrderLayout.setStretch(1, 1)
 
-        self.camerabutton = qt.QPushButton("camera")
-        self.camerabutton.enabled = True
-        self.camerabutton.connect("clicked(bool)", self.oncamerabutton)
-
         self.toggleVisualizers = qt.QCheckBox("Colored Regions")
         self.toggleVisualizers.setStyleSheet("margin-left:25%; margin-right:25%;")
         self.toggleVisualizers.setLayoutDirection(qt.Qt.RightToLeft)
         self.toggleVisualizers.enabled = False
         self.toggleVisualizers.setChecked(True)
-        self.toggleVisualizers.toggled.connect(self.onToggleVisualizers)        
+        self.toggleVisualizers.toggled.connect(self.onToggleVisualizers)
         self.toggleVisualizersWidget = qt.QWidget()
         self.toggleVisualizersLayout = qt.QHBoxLayout(self.toggleVisualizersWidget)
         self.toggleVisualizersLayout.addWidget(self.toggleVisualizers)
@@ -265,7 +261,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         slicer.mrmlScene.Clear(False)
         slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutNone)
 
-        print(self.currentLayout)
+        # print(self.currentLayout)
 
         interval = 20
 
@@ -403,7 +399,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             )
             slicer.app.layoutManager().setLayout(self.currentLayout + 1)
             self.currentLayout += 1
-            print(self.currentLayout)
+            # print(self.currentLayout)
             self.orderSelect.setStyleSheet("border: 1px solid green;")
             timer = qt.QTimer()
             timer.singleShot(1000, self.changeOrderColor)
@@ -434,7 +430,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.onOrderSelectEnter()
 
     def switchUser(self):
-        print("ctrl b")
+        # print("ctrl b")
         if self.userSwitched:
             slicer.util.setMenuBarsVisible(True)
             slicer.util.mainWindow().findChild(
@@ -612,7 +608,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.StartButton.enabled = True
             self.needleMovementSelected = True
         self.needle_file = self.inputFolder + text
-        print(self.needle_file)
+        # print(self.needle_file)
 
     def onStreamingCheck(self):
         checked = self.streamingCheckBox.isChecked()
@@ -624,7 +620,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.stream_live_data = True
             self.needle_file = self.inputFolder + "needle-tracker.txt"
             self.StartButton.enabled = True
-            print(self.needle_file)
+            # print(self.needle_file)
         else:
             self.StartButton.enabled = False
             self.stream_live_data = False
@@ -632,7 +628,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.dropDownMovement.enabled = True
             self.dropDownMovementLabel.enabled = True
             self.StartButton.enabled = False
-            print(self.needle_file)
+            # print(self.needle_file)
 
     def onToggleVisualizers(self):
         checked = self.toggleVisualizers.isChecked()
@@ -810,8 +806,12 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         shaft_views = []
         for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
             if view.GetName() == "View1":
-                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetViewNodeIDs([view.GetID()])
-                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetViewNodeIDs([view.GetID()])
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "RegionLegendModelDisplay"
+                ).SetViewNodeIDs([view.GetID()])
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "AngleLegendModelDisplay"
+                ).SetViewNodeIDs([view.GetID()])
             if view.GetName() == "View2":
                 self.compositeNeedleEgoShaft[1].SetViewNodeIDs([view.GetID()])
             view.SetAxisLabelsVisible(False)
@@ -923,30 +923,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             camera_3.GetFocalPoint(),
         ]
 
-    def oncamerabutton(self):
-        print(
-            (
-                "Position"
-                + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetPosition())
-                + "\n"
-            ),
-            (
-                "ViewUp"
-                + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetViewUp())
-                + "\n"
-            ),
-            (
-                "ViewAngle "
-                + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetViewAngle())
-                + "\n"
-            ),
-            (
-                "FocalPoint"
-                + str(slicer.mrmlScene.GetFirstNodeByName("Camera_3").GetFocalPoint())
-                + "\n"
-            ),
-        )
-
     def createCompositeNeedle(self):
         opacity = 1
         white = [1, 1, 1]
@@ -1000,15 +976,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             "CompositeNeedle",
         )
 
-        self.compositeNeedleEgoShaft[1].SetAmbient(.73)
-        self.compositeNeedleEgoShaft[1].SetDiffuse(.91)
+        self.compositeNeedleEgoShaft[1].SetAmbient(0.73)
+        self.compositeNeedleEgoShaft[1].SetDiffuse(0.91)
         self.compositeNeedleEgoShaft[1].SetSpecular(1)
         self.compositeNeedleEgoShaft[1].SetPower(1)
 
         for node in cleanup_transforms:
             slicer.mrmlScene.RemoveNode(node)
-        
-
 
     # create tissue rectangle
     def createTissue(self):
@@ -1016,7 +990,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         tissue_data = self.loadDataFromFile(
             self.inputFolder + "tissue.txt", ignoreFirstLines=1
         )  # data in list
-        print(tissue_data)
+        # print(tissue_data)
         corner1 = np.array(tissue_data[0])
         corner2 = np.array(tissue_data[1])
         center = (corner2 + corner1) / 2
@@ -1024,7 +998,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         transform = np.eye(4)
         transform[0:3, 3] = center
-        print(transform)
+        # print(transform)
         model = self.makeCube(size[0], size[1], size[2])
         color = [210 / 255, 187 / 255, 186 / 255]
         opacity = 1
@@ -1266,7 +1240,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.inputFolder + "plan.txt", ignoreFirstLines=1
         )
         plan = np.array(plan_data)
-        print(plan)
 
         plan_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
         plan_node.SetName("Plan")
