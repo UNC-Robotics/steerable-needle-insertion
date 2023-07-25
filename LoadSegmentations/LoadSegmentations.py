@@ -253,9 +253,7 @@ class LoadSegmentationsLogic(ScriptedLoadableModuleLogic):
     
     instance.onSetWorkSpaceClicked()
 
-    instance.onLoadSegmentationsButton()
-    
-    
+    instance.onLoadSegmentationsButton()    
 
 
 class LoadSegmentationsTest(ScriptedLoadableModuleTest):

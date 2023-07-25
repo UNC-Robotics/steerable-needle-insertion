@@ -204,6 +204,12 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.camerabutton.enabled = True
         self.camerabutton.connect("clicked(bool)", self.oncamerabutton)
 
+        self.toggleVisualizers = qt.QCheckBox("Colored Regions")
+        self.toggleVisualizers.setLayoutDirection(qt.Qt.RightToLeft)
+        self.toggleVisualizers.enabled = False
+        self.toggleVisualizers.setChecked(True)
+        self.toggleVisualizers.toggled.connect(self.onToggleVisualizers)
+
         self.userStudySection = self.newSection("User Study")
         self.userStudyLayout = self.newHItemLayout(
             self.userStudySection,
@@ -215,7 +221,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
                 [None, self.needleSettings],
                 [None, self.streamingCheckBoxWidget, self.comboDropDownMovement],
                 [None, self.StartButton, self.resetNeedleButton],
-                [None, self.camerabutton],
+                [None, self.toggleVisualizers],
             ],
         )
 
@@ -269,6 +275,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         self.spaceBarPress.connect("activated()", self.eventChange)
 
+        slicer.util.mainWindow().setWindowTitle("User Study")
+
     def eventChange(self):
         if not self.eventChanged:
             with open(self.inputFolder + "timestamps.txt", "w") as file:
@@ -283,18 +291,22 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         flag = self.eventCount < 15
 
         if self.eventCount == 0:
+            self.startText.SetDisplayVisibility(False)
             self.dropDownViewSelector.setCurrentIndex(8)
             self.orderSelect.setText("1245")
             self.onOrderSelectEnter()
-            self.resetAngle()
+            # self.resetAngle()
 
         if self.eventCount < 5:
             self.resetRegion()
             self.createInsertionRegion(self.eventCount, flag)
+            self.onToggleVisualizers()
             self.regionColorTimer.start()
 
         if self.eventCount == 5:
+            
             self.resetRegion()
+            self.onToggleVisualizers()
             self.dropDownViewSelector.setCurrentIndex(13)
             self.orderSelect.setText("12345")
             self.onOrderSelectEnter()
@@ -303,6 +315,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.resetAngle()
             self.createInsertionAngle(self.eventCount - 5)
             self.createInsertionPose(self.eventCount - 5)
+            self.onToggleVisualizers()
             self.setCamera3()
             self.startAngleColorTimer.start()
 
@@ -312,6 +325,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.resetAngle()
             self.createInsertionAngle(self.eventCount - 5)
             self.createInsertionPose(self.eventCount - 5)
+            self.onToggleVisualizers()
             self.setCamera3()
             self.regionColorTimer.start()
             self.startAngleColorTimer.start()
@@ -611,6 +625,28 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.StartButton.enabled = False
             print(self.needle_file)
 
+    def onToggleVisualizers(self):
+        checked = self.toggleVisualizers.isChecked()
+
+        if checked:
+            if self.coloredAngle != []:
+                self.coloredAngle[1].VisibilityOn()
+                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetVisibility(True)
+            else: #Checked, but no colored cone model in scene
+                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetVisibility(False)
+            if self.coloredRegion != []:
+                self.coloredRegion[1].VisibilityOn()
+                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetVisibility(True)
+            else: #Checked, but no colored region model in scene
+                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetVisibility(False)
+        else: #Not checked -> regions and legends off
+            if self.coloredAngle != []:
+                self.coloredAngle[1].VisibilityOff()
+                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetVisibility(False)
+            if self.coloredRegion != []:
+                self.coloredRegion[1].VisibilityOff()
+                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetVisibility(False)
+
     def onResetNeedleButton(self):
         self.needle_pose_index = 0
         self.needle_data = []
@@ -628,8 +664,14 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.streamingCheckBox.setChecked(False)
         self.resetNeedleButton.enabled = False
 
-        self.onClearEnvironmentClicked()
-        self.onLoadEnvironmentClicked()
+        initial_position = np.eye(4)
+        initial_position[:3, 3] = [225.0, 150.0, 175.0]
+        self.composite_needle.SetMatrixTransformToParent(
+            self.npToVtkMatrix(initial_position)
+        )
+
+
+
 
     def onClearEnvironmentClicked(self):
         slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
@@ -646,6 +688,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.dropDownMovement.enabled = False
         self.dropDownMovementLabel.enabled = False
         self.loadEnvironmentButton.enabled = True
+        self.toggleVisualizers.enabled = False
 
         self.regionColorTimer.stop()
         self.startAngleColorTimer.stop()
@@ -654,15 +697,15 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     # create vtk objects representing parts of the environment
     def onLoadEnvironmentClicked(self):
-        self.dropDownViewSelector.setCurrentIndex(1)
-        self.orderSelect.setText("1")
-        self.onOrderSelectEnter()
+        slicer.util.mainWindow().setWindowTitle("User Study")
 
         self.loadEnvironmentButton.enabled = False
         self.clearEnvironmentButton.enabled = True
 
         self.createCompositeNeedle()
         self.createTissue()
+        self.createColorRegionLegend()
+        self.createColorAngleLegend()
 
         self.needleSettings.enabled = True
         self.streamingCheckBox.enabled = True
@@ -670,12 +713,18 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.resetNeedleButton.enabled = False
         self.dropDownMovement.enabled = True
         self.dropDownMovementLabel.enabled = True
+        self.toggleVisualizers.enabled = True
 
         self.setCameras()
 
         self.tissue[1].VisibilityOff()
 
         self.createSegmentations()
+        self.createStartText()
+
+        self.dropDownViewSelector.setCurrentIndex(1)
+        self.orderSelect.setText("1")
+        self.onOrderSelectEnter()
 
     def createSegmentations(self):
         self.segLogic = slicer.util.getModuleLogic("LoadSegmentations")
@@ -726,14 +775,21 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_2.SetViewUp(0, 0, 1)
         camera_2.SetFocalPoint(0, 0, 0)
 
-        handle_views = []
+        views = []
         for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
+            if view.GetName() == "View1":
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "RegionLegendModelDisplay"
+                ).SetViewNodeIDs([slicer.mrmlScene.GetFirstNodeByName("View1").GetID()])
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "AngleLegendModelDisplay"
+                ).SetViewNodeIDs([slicer.mrmlScene.GetFirstNodeByName("View1").GetID()])
             view.SetAxisLabelsVisible(False)
             view.SetBoxVisible(False)
             if not view.GetName() == "View3":
-                handle_views.append(view.GetID())
+                views.append(view.GetID())
 
-        self.compositeNeedleHandle[1].SetViewNodeIDs(handle_views)
+        self.compositeNeedleHandle[1].SetViewNodeIDs(views)
 
         camera_4 = slicer.mrmlScene.GetFirstNodeByName("Camera_3")
         camera_4.SetPosition(-502.6824440718432, 159.1161055461255, 125.99996646422413)
@@ -753,9 +809,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         # origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
 
-        camera_2.SetPosition(225.20335390291237, 144.45305645449645, 249.6013194165112)
+        camera_2.SetPosition(224.93336928384122, 154.25968871017406, 249.68612593136095)
         camera_2.SetViewUp(
-            0.007225311558870536, -0.9972196262444875, -0.07416745853595437
+            0.004454693564200245, 0.9983678079251211, -0.0569374727577321
         )
 
         camera_2_focal = camera_2.GetFocalPoint()
@@ -1186,6 +1242,20 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         fiducial_node.AddControlPoint(goal[0], goal[1], goal[2], "Goal")
         self.goal = fiducial_node
 
+    def createStartText(self):
+        data = self.loadDataFromFile(
+            self.inputFolder + "starttext.txt", ignoreFirstLines=1
+        )  # data in list
+        text = data[0]
+        fiducial_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+        fiducial_node.SetName("Goal")
+        fiducial_node.GetDisplayNode().SetSelectedColor([1, 0, 0])
+        fiducial_node.AddControlPoint(text[0], text[1], text[2], "Press Space To Begin")
+        fiducial_node.GetDisplayNode().SetTextScale(22)
+        fiducial_node.GetDisplayNode().SetGlyphScale(0)
+        fiducial_node.SetDisplayVisibility(True)
+        self.startText = fiducial_node
+
     def makeCube(self, size_x, size_y, size_z):
         cubeModel = vtk.vtkCubeSource()
         cubeModel.SetXLength(size_x)
@@ -1275,6 +1345,11 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         display_node = slicer.vtkMRMLModelDisplayNode()
         display_node.SetColor(color[0], color[1], color[2])
         display_node.SetOpacity(opacity)
+        if name == "InsertionRegion" or name == "InsertionAngle":
+            if self.toggleVisualizers.isChecked():
+                display_node.VisibilityOn()
+            else:
+                display_node.VisibilityOff()
         slicer.mrmlScene.AddNode(display_node)
         model_node.SetAndObserveDisplayNodeID(display_node.GetID())
         # Add to scene
@@ -1421,6 +1496,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         if distance > self.coloredRegionRadius:
             color = [1, 0, 0]
+            colorPos = 0
         else:
             colorPos = int(
                 (1 - distance / self.coloredRegionRadius) * color_map_index_length
@@ -1428,6 +1504,20 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             color = layouts.colorMap(colorPos)[0]
 
         region_display.SetColor(color)
+
+        if (
+            self.colorTableRegionIndex is not None
+            and self.colorTableRegionIndex != colorPos
+        ):
+            prev = self.colorTableRegionPrev
+            self.colorTableRegion.SetColor(
+                self.colorTableRegionIndex, prev[0], prev[1], prev[2], 1
+            )
+
+        if self.colorTableRegionIndex != colorPos:
+            self.colorTableRegionIndex = colorPos
+            self.colorTableRegionPrev = color
+            self.colorTableRegion.SetColor(colorPos, 0, 0, 0, 1)
 
     def updateAngleColor(self):
         cone_direction = self.getTransformMat(self.coloredAngle[2].GetName())[:3, 2]
@@ -1447,6 +1537,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         cone_angle = self.coloredAngleModel.GetAngle()
 
         if angle_difference > cone_angle:
+            colorPos = 0
             color = [1, 0, 0]
         else:
             colorPos = int((1 - angle_difference / cone_angle) * color_map_index_length)
@@ -1454,49 +1545,109 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         self.coloredAngle[1].SetColor(color)
 
-    def colorAngleLegend(self):
-        # colorTable = slicer.vtkMRMLColorTableNode()
-        # colorTable.SetTypeToUser()
-        # colorTable.SetNumberOfColors(colorMap(0)[1])
+        if (
+            self.colorTableAngleIndex is not None
+            and self.colorTableAngleIndex != colorPos
+        ):
+            prev = self.colorTableAnglePrev
+            self.colorTableAngle.SetColor(
+                self.colorTableAngleIndex, prev[0], prev[1], prev[2], 1
+            )
 
-        # for n in range(colorMap(0)[1]):
-        #     color = colorMap(n)[0]
-        #     colorTable.SetColor(n, color[0], color[1], color[2], 1)
+        if self.colorTableAngleIndex != colorPos:
+            self.colorTableAngleIndex = colorPos
+            self.colorTableAnglePrev = color
+            self.colorTableAngle.SetColor(colorPos, 0, 0, 0, 1)
 
-        # slicer.mrmlScene.AddNode(colorTable)
+    def createColorRegionLegend(self):
+        self.colorTableRegion = slicer.vtkMRMLColorTableNode()
+        self.colorTableRegion.SetTypeToUser()
+        self.colorTableRegion.SetNumberOfColors(layouts.colorMap(0)[1])
+        self.colorTableRegionIndex = None
+        self.colorTableRegionPrev = None
 
-        # sphere = vtk.vtkSphereSource()
-        # sphere.SetCenter(0,0,0)
-        # sphere.SetRadius(1)
-        # legendModel = slicer.vtkMRMLModelNode()
-        # legendModel.SetPolyDataConnection(sphere.GetOutputPort())
-        # legendModel.SetName("LegendModel")
-        # slicer.mrmlScene.AddNode(legendModel)
+        for n in range(layouts.colorMap(0)[1]):
+            color = layouts.colorMap(n)[0]
+            self.colorTableRegion.SetColor(n, color[0], color[1], color[2], 1)
 
-        # displayLegend = slicer.vtkMRMLModelDisplayNode()
-        # displayLegend.SetName("LegendModelDisplay")
-        # displayLegend.SetActiveScalarName("Normals")
-        # displayLegend.SetScalarRange(0,100)
-        # displayLegend.SetScalarRangeFlag(0)
-        # displayLegend.SetVisibility(True)
-        # displayLegend.SetAndObserveColorNodeID(colorTable.GetID())
-        # slicer.mrmlScene.AddNode(displayLegend)
-        # legendModel.SetAndObserveDisplayNodeID(displayLegend.GetID())
+        slicer.mrmlScene.AddNode(self.colorTableRegion)
 
-        # displayLegendNode = slicer.vtkMRMLColorLegendDisplayNode()
-        # displayLegendNode.SetName("ColorAngleLegend")
-        # slicer.mrmlScene.AddNode(displayLegendNode)
-        # displayLegendNode.SetAndObservePrimaryDisplayNode(displayLegend)
-        # legendModel.AddAndObserveDisplayNodeID(displayLegendNode.GetID())
+        sphere = vtk.vtkSphereSource()
+        sphere.SetCenter(0, 0, 0)
+        sphere.SetRadius(1)
+        legendModel = slicer.vtkMRMLModelNode()
+        legendModel.SetPolyDataConnection(sphere.GetOutputPort())
+        legendModel.SetName("RegionLegendModel")
+        slicer.mrmlScene.AddNode(legendModel)
 
-        # displayLegendNode.SetNumberOfLabels(2)
-        # displayLegendNode.SetMaxNumberOfColors(100)
-        # displayLegendNode.SetTitleText("Orientation")
+        displayLegend = slicer.vtkMRMLModelDisplayNode()
+        displayLegend.SetName("RegionLegendModelDisplay")
+        displayLegend.SetActiveScalarName("Normals")
+        displayLegend.SetScalarRange(0, 100)
+        displayLegend.SetScalarRangeFlag(0)
+        displayLegend.SetVisibility(False)
+        displayLegend.SetAndObserveColorNodeID(self.colorTableRegion.GetID())
+        slicer.mrmlScene.AddNode(displayLegend)
+        legendModel.SetAndObserveDisplayNodeID(displayLegend.GetID())
 
-        pass
+        displayLegendNode = slicer.vtkMRMLColorLegendDisplayNode()
+        displayLegendNode.SetName("ColorRegionLegend")
+        slicer.mrmlScene.AddNode(displayLegendNode)
+        displayLegendNode.SetAndObservePrimaryDisplayNode(displayLegend)
+        legendModel.AddAndObserveDisplayNodeID(displayLegendNode.GetID())
 
-    def colorRegionLegend(self):
-        pass
+        displayLegendNode.SetNumberOfLabels(2)
+        displayLegendNode.SetMaxNumberOfColors(100)
+        displayLegendNode.SetSize(0.1, 0.85)
+        displayLegendNode.SetPosition(0.85, 0.4)
+        displayLegendNode.SetTitleText("Position")
+        displayLegendNode.GetTitleTextProperty().SetFontSize(20)
+        displayLegendNode.GetLabelTextProperty().SetFontFamilyToArial()
+
+    def createColorAngleLegend(self):
+        self.colorTableAngle = slicer.vtkMRMLColorTableNode()
+        self.colorTableAngle.SetTypeToUser()
+        self.colorTableAngle.SetNumberOfColors(layouts.colorMap(0)[1])
+        self.colorTableAngleIndex = None
+        self.colorTableAnglePrev = None
+
+        for n in range(layouts.colorMap(0)[1]):
+            color = layouts.colorMap(n)[0]
+            self.colorTableAngle.SetColor(n, color[0], color[1], color[2], 1)
+
+        slicer.mrmlScene.AddNode(self.colorTableAngle)
+
+        sphere = vtk.vtkSphereSource()
+        sphere.SetCenter(0, 0, 0)
+        sphere.SetRadius(1)
+        legendModel = slicer.vtkMRMLModelNode()
+        legendModel.SetPolyDataConnection(sphere.GetOutputPort())
+        legendModel.SetName("AngleLegendModel")
+        slicer.mrmlScene.AddNode(legendModel)
+
+        displayLegend = slicer.vtkMRMLModelDisplayNode()
+        displayLegend.SetName("AngleLegendModelDisplay")
+        displayLegend.SetActiveScalarName("Normals")
+        displayLegend.SetScalarRange(0, 100)
+        displayLegend.SetScalarRangeFlag(0)
+        displayLegend.SetVisibility(False)
+        displayLegend.SetAndObserveColorNodeID(self.colorTableAngle.GetID())
+        slicer.mrmlScene.AddNode(displayLegend)
+        legendModel.SetAndObserveDisplayNodeID(displayLegend.GetID())
+
+        displayLegendNode = slicer.vtkMRMLColorLegendDisplayNode()
+        displayLegendNode.SetName("ColorAngleLegend")
+        slicer.mrmlScene.AddNode(displayLegendNode)
+        displayLegendNode.SetAndObservePrimaryDisplayNode(displayLegend)
+        legendModel.AddAndObserveDisplayNodeID(displayLegendNode.GetID())
+
+        displayLegendNode.SetNumberOfLabels(2)
+        displayLegendNode.SetMaxNumberOfColors(100)
+        displayLegendNode.SetSize(0.1, 0.85)
+        displayLegendNode.SetPosition(0.98, 0.4)
+        displayLegendNode.SetTitleText("Orientation")
+        displayLegendNode.GetTitleTextProperty().SetFontSize(20)
+        displayLegendNode.GetLabelTextProperty().SetFontFamilyToArial()
 
     def loadDataFromFile(self, fullPath, ignoreFirstLines=1):
         print("Loading points from " + str(fullPath))
