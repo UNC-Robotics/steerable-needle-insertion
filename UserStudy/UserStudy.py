@@ -1098,7 +1098,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         transform = np.matmul(transform, rotation_matrix_x)
         transform = np.round(transform, 2)
 
-        color = [117 / 255, 157 / 255, 230 / 255]
+        color = [1,0,0]
         opacity = 0.5
 
         radius = region_data[3]
@@ -1155,7 +1155,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         transform = np.matmul(start_coords, transform)
 
-        color = [0.2, 0.8, 0.1]
+        color = [1,0,0]
         opacity = 0.2
 
         self.coloredAngleModel = self.makeCone(angle_data[3], angle_data[4], 10)
