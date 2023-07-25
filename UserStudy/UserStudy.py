@@ -205,10 +205,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.camerabutton.connect("clicked(bool)", self.oncamerabutton)
 
         self.toggleVisualizers = qt.QCheckBox("Colored Regions")
+        self.toggleVisualizers.setStyleSheet("margin-left:25%; margin-right:25%;")
         self.toggleVisualizers.setLayoutDirection(qt.Qt.RightToLeft)
         self.toggleVisualizers.enabled = False
         self.toggleVisualizers.setChecked(True)
-        self.toggleVisualizers.toggled.connect(self.onToggleVisualizers)
+        self.toggleVisualizers.toggled.connect(self.onToggleVisualizers)        
+        self.toggleVisualizersWidget = qt.QWidget()
+        self.toggleVisualizersLayout = qt.QHBoxLayout(self.toggleVisualizersWidget)
+        self.toggleVisualizersLayout.addWidget(self.toggleVisualizers)
+        self.toggleVisualizersLayout.setAlignment(
+            self.toggleVisualizers, qt.Qt.AlignCenter
+        )
 
         self.userStudySection = self.newSection("User Study")
         self.userStudyLayout = self.newHItemLayout(
@@ -221,7 +228,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
                 [None, self.needleSettings],
                 [None, self.streamingCheckBoxWidget, self.comboDropDownMovement],
                 [None, self.StartButton, self.resetNeedleButton],
-                [None, self.toggleVisualizers],
+                [None, self.toggleVisualizersWidget],
             ],
         )
 
@@ -304,7 +311,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.regionColorTimer.start()
 
         if self.eventCount == 5:
-            
             self.resetRegion()
             self.onToggleVisualizers()
             self.dropDownViewSelector.setCurrentIndex(13)
@@ -405,6 +411,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.orderSelect.setStyleSheet("border: 1px solid red;")
             timer = qt.QTimer()
             timer.singleShot(1000, self.changeOrderColor)
+        for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
+            view.SetAxisLabelsVisible(False)
+            view.SetBoxVisible(False)
 
     def changeOrderColor(self):
         self.orderSelect.setStyleSheet("")
@@ -631,21 +640,33 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         if checked:
             if self.coloredAngle != []:
                 self.coloredAngle[1].VisibilityOn()
-                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetVisibility(True)
-            else: #Checked, but no colored cone model in scene
-                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetVisibility(False)
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "AngleLegendModelDisplay"
+                ).SetVisibility(True)
+            else:  # Checked, but no colored cone model in scene
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "AngleLegendModelDisplay"
+                ).SetVisibility(False)
             if self.coloredRegion != []:
                 self.coloredRegion[1].VisibilityOn()
-                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetVisibility(True)
-            else: #Checked, but no colored region model in scene
-                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetVisibility(False)
-        else: #Not checked -> regions and legends off
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "RegionLegendModelDisplay"
+                ).SetVisibility(True)
+            else:  # Checked, but no colored region model in scene
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "RegionLegendModelDisplay"
+                ).SetVisibility(False)
+        else:  # Not checked -> regions and legends off
             if self.coloredAngle != []:
                 self.coloredAngle[1].VisibilityOff()
-                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetVisibility(False)
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "AngleLegendModelDisplay"
+                ).SetVisibility(False)
             if self.coloredRegion != []:
                 self.coloredRegion[1].VisibilityOff()
-                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetVisibility(False)
+                slicer.mrmlScene.GetFirstNodeByName(
+                    "RegionLegendModelDisplay"
+                ).SetVisibility(False)
 
     def onResetNeedleButton(self):
         self.needle_pose_index = 0
@@ -669,9 +690,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.composite_needle.SetMatrixTransformToParent(
             self.npToVtkMatrix(initial_position)
         )
-
-
-
 
     def onClearEnvironmentClicked(self):
         slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
@@ -704,6 +722,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         self.createCompositeNeedle()
         self.createTissue()
+        self.createCloth()
         self.createColorRegionLegend()
         self.createColorAngleLegend()
 
@@ -725,6 +744,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.dropDownViewSelector.setCurrentIndex(1)
         self.orderSelect.setText("1")
         self.onOrderSelectEnter()
+
+    def createCloth(self):
+        # read in object size
+        path = self.inputFolder + "cloth.obj"
+        slicer.util.loadModel(path)
+        color = [119 / 255, 153 / 255, 189 / 255]
+        self.clothDisplay = slicer.mrmlScene.GetFirstNodeByName(
+            "cloth"
+        ).GetDisplayNode()
+        self.clothDisplay.SetColor(color)
+        self.clothDisplay.SetVisibility(False)
 
     def createSegmentations(self):
         self.segLogic = slicer.util.getModuleLogic("LoadSegmentations")
@@ -748,7 +778,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             [
                 [-0.116671, -4.996e-16, 0.993171, 262.973],
                 [-0.179286, -0.983571, -0.0210613, -52.2071],
-                [0.976854, -0.180519, 0.114754, -46.1316],
+                [0.976854, -0.180519, 0.114754, -53.5],
                 [0, 0, 0, 1],
             ]
         )
@@ -756,6 +786,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     def phaseTwo(self):
         self.tissue[1].VisibilityOn()
+        self.clothDisplay.SetVisibility(True)
         nodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode")
         for node in nodes:
             node.SetDisplayVisibility(True)
@@ -775,21 +806,23 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_2.SetViewUp(0, 0, 1)
         camera_2.SetFocalPoint(0, 0, 0)
 
-        views = []
+        handle_views = []
+        shaft_views = []
         for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
             if view.GetName() == "View1":
-                slicer.mrmlScene.GetFirstNodeByName(
-                    "RegionLegendModelDisplay"
-                ).SetViewNodeIDs([slicer.mrmlScene.GetFirstNodeByName("View1").GetID()])
-                slicer.mrmlScene.GetFirstNodeByName(
-                    "AngleLegendModelDisplay"
-                ).SetViewNodeIDs([slicer.mrmlScene.GetFirstNodeByName("View1").GetID()])
+                slicer.mrmlScene.GetFirstNodeByName("RegionLegendModelDisplay").SetViewNodeIDs([view.GetID()])
+                slicer.mrmlScene.GetFirstNodeByName("AngleLegendModelDisplay").SetViewNodeIDs([view.GetID()])
+            if view.GetName() == "View2":
+                self.compositeNeedleEgoShaft[1].SetViewNodeIDs([view.GetID()])
             view.SetAxisLabelsVisible(False)
             view.SetBoxVisible(False)
             if not view.GetName() == "View3":
-                views.append(view.GetID())
+                handle_views.append(view.GetID())
+            if not view.GetName() == "View2":
+                shaft_views.append(view.GetID())
 
-        self.compositeNeedleHandle[1].SetViewNodeIDs(views)
+        self.compositeNeedleHandle[1].SetViewNodeIDs(handle_views)
+        self.compositeNeedleShaft[1].SetViewNodeIDs(shaft_views)
 
         camera_4 = slicer.mrmlScene.GetFirstNodeByName("Camera_3")
         camera_4.SetPosition(-502.6824440718432, 159.1161055461255, 125.99996646422413)
@@ -915,7 +948,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
 
     def createCompositeNeedle(self):
-        opacity = 0.6
+        opacity = 1
         white = [1, 1, 1]
         black = [0.1, 0.1, 0.1]
 
@@ -944,6 +977,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.compositeNeedleShaft = self.initModel(
             compositeNeedleShaft, transform, "CompositeNeedleShaft", white, opacity
         )
+        self.compositeNeedleEgoShaft = self.initModel(
+            compositeNeedleShaft, transform, "CompositeNeedleEgoShaft", white, opacity
+        )
         self.compositeNeedleHandle = self.initModel(
             compositeNeedleHandle, transform, "CompositeNeedleHandle", black, opacity
         )
@@ -951,19 +987,28 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         cleanup_transforms.append(self.compositeNeedleTip[2])
         cleanup_transforms.append(self.compositeNeedleShaft[2])
         cleanup_transforms.append(self.compositeNeedleHandle[2])
+        cleanup_transforms.append(self.compositeNeedleEgoShaft[2])
 
         self.composite_needle = self.initCompositeModel(
             [
                 self.compositeNeedleTip[0],
                 self.compositeNeedleShaft[0],
+                self.compositeNeedleEgoShaft[0],
                 self.compositeNeedleHandle[0],
             ],
             transform,
             "CompositeNeedle",
         )
 
+        self.compositeNeedleEgoShaft[1].SetAmbient(.73)
+        self.compositeNeedleEgoShaft[1].SetDiffuse(.91)
+        self.compositeNeedleEgoShaft[1].SetSpecular(1)
+        self.compositeNeedleEgoShaft[1].SetPower(1)
+
         for node in cleanup_transforms:
             slicer.mrmlScene.RemoveNode(node)
+        
+
 
     # create tissue rectangle
     def createTissue(self):
@@ -984,6 +1029,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         color = [210 / 255, 187 / 255, 186 / 255]
         opacity = 1
         self.tissue = self.initModel(model, transform, "Tissue", color, opacity)
+        self.tissue[1].SetAmbient(0.7)
+        self.tissue[1].SetDiffuse(0.29)
 
     # create spherical obstacles
     def createObstacles(self):
@@ -1098,7 +1145,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         transform = np.matmul(transform, rotation_matrix_x)
         transform = np.round(transform, 2)
 
-        color = [1,0,0]
+        color = [1, 0, 0]
         opacity = 0.5
 
         radius = region_data[3]
@@ -1155,7 +1202,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         transform = np.matmul(start_coords, transform)
 
-        color = [1,0,0]
+        color = [1, 0, 0]
         opacity = 0.2
 
         self.coloredAngleModel = self.makeCone(angle_data[3], angle_data[4], 10)
