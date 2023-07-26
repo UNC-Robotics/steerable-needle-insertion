@@ -93,7 +93,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         # hardcoded values for recorded data
         self.needle_registration = np.eye(4)
-        self.needle_registration[0:3, 3] = np.array([330.0, -20.0, 250.0])
+        self.needle_registration = np.array([0,1,0,330.0],
+                                            [-1,0,0,-20.0],
+                                            [0,0,1,250.0],
+                                            [0,0,0,0])
         self.stream_live_data = False
 
     def initUI(self):
