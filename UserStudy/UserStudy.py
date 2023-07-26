@@ -68,7 +68,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             os.path.dirname(os.path.abspath(__file__)) + "/Resources/Data/"
         )  # Hardcode input path here for testing purposes
         self.composite_needle = None
-        self.eventCount = 15
+        self.eventCount = 0
         self.eventChanged = False
 
         self.coloredAngle = []
