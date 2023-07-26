@@ -280,6 +280,24 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         slicer.util.mainWindow().setWindowTitle("User Study")
 
+        for n in range(5):
+            viewName = slicer.app.layoutManager().threeDWidget(n).threeDView().mrmlViewNode().GetName()
+            if viewName ==  "View1":
+                self.View1Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+                print(f"1: n={n}")
+            if viewName ==  "View2":
+                self.View2Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+                print(f"2: n={n}")
+            if viewName ==  "View3":
+                self.View3Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+                print(f"3: n={n}")
+            if viewName ==  "View4":
+                self.View4Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+                print(f"4: n={n}")
+            if viewName ==  "View5":
+                self.View5Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+                print(f": n={n}")
+
     def eventChange(self):
         if not self.eventChanged:
             with open(self.inputFolder + "timestamps.txt", "w") as file:
@@ -317,8 +335,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.resetAngle()
             self.createInsertionAngle(self.eventCount - 5)
             self.createInsertionPose(self.eventCount - 5)
-            self.onToggleVisualizers()
             self.setCamera3()
+            self.setCamera3()
+            self.onToggleVisualizers()
             self.startAngleColorTimer.start()
 
         if self.eventCount < 15 and self.eventCount >= 10:
@@ -327,8 +346,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.resetAngle()
             self.createInsertionAngle(self.eventCount - 5)
             self.createInsertionPose(self.eventCount - 5)
-            self.onToggleVisualizers()
             self.setCamera3()
+            self.onToggleVisualizers()
             self.regionColorTimer.start()
             self.startAngleColorTimer.start()
 
@@ -772,9 +791,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         transform = np.array(
             [
-                [-0.116671, -4.996e-16, 0.993171, 262.973],
-                [-0.179286, -0.983571, -0.0210613, -52.2071],
-                [0.976854, -0.180519, 0.114754, -53.5],
+                [-0.116671, -4.996e-16, 0.993171, 381.00],
+                [-0.179286, -0.983571, -0.0210613, 167.79],
+                [0.976854, -0.180519, 0.114754, -23.50],
                 [0, 0, 0, 1],
             ]
         )
@@ -794,8 +813,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera.SetPosition(0, 0, 0)
         camera.SetViewUp(0, 0, 1)
         camera.SetFocalPoint(0, 0, 0)
-        camera.SetPosition([238.1766362365439, -723.843349250591, 367.68655777960373])
-        camera.SetViewUp(0, 0, 1)
+        camera.SetPosition([222.5576399470194, -185.12465478378599, 266.6817368815024])
+        camera.SetViewUp([-0.0025715218187866242, 0.2989896106755466, 0.9542529014803259])
 
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
         camera_2.SetPosition(0, 0, 0)
@@ -825,12 +844,12 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.compositeNeedleShaft[1].SetViewNodeIDs(shaft_views)
 
         camera_4 = slicer.mrmlScene.GetFirstNodeByName("Camera_3")
-        camera_4.SetPosition(-502.6824440718432, 159.1161055461255, 125.99996646422413)
-        camera_4.SetViewUp(0, 0, 1)
+        camera_4.SetPosition(-185.75776903637114, 155.14580392440647, 151.69601919675594)
+        camera_4.SetViewUp(0,0,1)
         camera_4.SetFocalPoint(0, 0, 0)
 
         camera_5 = slicer.mrmlScene.GetFirstNodeByName("Camera_4")
-        camera_5.SetPosition(225.0, 138.6358800077325, 790.8131993123097)
+        camera_5.SetPosition(225.0, 144.69855415401824, 467.6163285076625)
         camera_5.SetViewUp(0, 1, 0)
         camera_5.SetFocalPoint(0, 0, 0)
 
@@ -842,9 +861,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         # origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
 
-        camera_2.SetPosition(224.93336928384122, 154.25968871017406, 249.68612593136095)
+        camera_2.SetPosition(224.975, 150.8, 200.68612593136095)
         camera_2.SetViewUp(
-            0.004454693564200245, 0.9983678079251211, -0.0569374727577321
+            0.004463893312410369, 0.9978291656684652, -0.06570410792233823
         )
 
         camera_2_focal = camera_2.GetFocalPoint()
@@ -873,7 +892,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     def resetCameras(self):
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
-        # camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
+        try:
+            camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
+        except:
+            pass
         camera_4 = slicer.mrmlScene.GetFirstNodeByName("Camera_3")
         camera_5 = slicer.mrmlScene.GetFirstNodeByName("Camera_4")
 
@@ -883,7 +905,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_2.SetPosition(self.camera_2[0])
         camera_2.SetViewUp(self.camera_2[1])
         camera_2.SetFocalPoint(self.camera_2[2])
-        # camera_3.SetPosition(self.camera_3[0]); camera_3.SetViewUp(self.camera_3[1]); camera_3.SetFocalPoint(self.camera_3[2])
+        try:
+            camera_3.SetPosition(self.camera_3[0]); camera_3.SetViewUp(self.camera_3[1]); camera_3.SetFocalPoint(self.camera_3[2])
+        except:
+            pass
         camera_4.SetPosition(self.camera_4[0])
         camera_4.SetViewUp(self.camera_4[1])
         camera_4.SetFocalPoint(self.camera_4[2])
@@ -891,14 +916,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_5.SetViewUp(self.camera_5[1])
         camera_5.SetFocalPoint(self.camera_5[2])
 
+
     def resetFocals(self):
         for n in range(5):
             slicer.app.layoutManager().threeDWidget(
                 n
             ).threeDController().resetFocalPoint()
+    
 
     def setCamera3(self):
-        # slicer.app.layoutManager().threeDWidget(2).threeDController().resetFocalPoint()
+        self.View3Controller.resetFocalPoint()
         camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
         camera_3.SetPosition(0, 0, 0)
         camera_3.SetViewUp(0, 0, 1)
@@ -928,11 +955,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         white = [1, 1, 1]
         black = [0.1, 0.1, 0.1]
 
-        tipLength = 5
-        tipAngle = 15
-
-        shaftLength = 70
-        handleLength = 40
+        tipLength = 5/2
+        tipAngle = 15/2
+        shaftLength = 70/2
+        handleLength = 40/2
 
         compositeNeedleTip = self.makeCone(tipLength, tipAngle, 3)
         radius = compositeNeedleTip.GetRadius()
@@ -989,17 +1015,14 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         # read in object size
         tissue_data = self.loadDataFromFile(
             self.inputFolder + "tissue.txt", ignoreFirstLines=1
-        )  # data in list
+        )[0]  # data in list
         # print(tissue_data)
-        corner1 = np.array(tissue_data[0])
-        corner2 = np.array(tissue_data[1])
-        center = (corner2 + corner1) / 2
-        size = np.absolute(corner2 - corner1)
+        center = np.array([tissue_data[0], tissue_data[1], tissue_data[2]])
 
         transform = np.eye(4)
         transform[0:3, 3] = center
         # print(transform)
-        model = self.makeCube(size[0], size[1], size[2])
+        model = self.makeCube(tissue_data[3], tissue_data[4], tissue_data[5])
         color = [210 / 255, 187 / 255, 186 / 255]
         opacity = 1
         self.tissue = self.initModel(model, transform, "Tissue", color, opacity)
@@ -1289,8 +1312,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         sphereModel = vtk.vtkSphereSource()
         sphereModel.SetCenter(0, 0, 0)
         sphereModel.SetRadius(radius)
-        sphereModel.SetThetaResolution(sphereModel.GetThetaResolution() * 10)
-        sphereModel.SetPhiResolution(sphereModel.GetPhiResolution() * 10)
+        sphereModel.SetThetaResolution(sphereModel.GetThetaResolution() * 20)
+        sphereModel.SetPhiResolution(sphereModel.GetPhiResolution() * 20)
         sphereModel.Update()
         return sphereModel
 
@@ -1299,7 +1322,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         cylinderModel.SetHeight(height)
         cylinderModel.SetRadius(radius)
         cylinderModel.SetCenter(0, height / 2, 0)
-        cylinderModel.SetResolution(cylinderModel.GetResolution() * 10)
+        cylinderModel.SetResolution(cylinderModel.GetResolution() * 20)
         cylinderModel.Update()
         return cylinderModel
 
@@ -1310,7 +1333,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         coneModel.SetRadius(radius)
         coneModel.SetDirection(0, 0, -1)
         coneModel.SetCenter(0, 0, height / 2)
-        coneModel.SetResolution(coneModel.GetResolution() * resolution)
+        coneModel.SetResolution(coneModel.GetResolution() * resolution * 2)
         coneModel.CappingOff()
         coneModel.Update()
         return coneModel
@@ -1337,8 +1360,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             radius[0] / radius[2], radius[1] / radius[2], radius[2] / radius[2]
         )
         model.SetAxisOfSymmetry(2)
-        model.SetThetaResolution(model.GetThetaResolution() * 10)
-        model.SetPhiResolution(model.GetPhiResolution() * 10)
+        model.SetThetaResolution(model.GetThetaResolution() * 20)
+        model.SetPhiResolution(model.GetPhiResolution() * 20)
         model.SetPhiRoundness(model.GetPhiRoundness() * 0.5)
         model.SetThetaRoundness(model.GetThetaRoundness() * 0.5)
         model.Update()
