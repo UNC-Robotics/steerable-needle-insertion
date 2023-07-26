@@ -77,6 +77,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.coloredRegionRadius = None
         self.insertionPose = []
         self.insertionPoseLength = None
+        self.startTime = None
 
         print(self.inputFolder)
 
@@ -304,8 +305,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     def eventChange(self):
 
         if not self.eventChanged:
-            with open(self.inputFolder + "timestamps.txt", "w") as file:
-                pass
+            with open(self.inputFolder + "timestamps.txt", "a") as file:
+                file.write("\n")
+            with open(self.inputFolder + "needle-timestamps.txt", "a") as file:
+                file.write("\n")
             self.startTime = time.time()
             self.eventChanged = True
         else:
@@ -624,9 +627,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             return False
         current = self.getTransformRot(pos, self.quaternionToRotationMatrix(quat))
         T = np.matmul(self.needle_registration, current)
-        print(current[0:3,3])
+        # print(current[0:3,3])
         #print(self.needle_registration)
         print(T)
+        if self.startTime is not None:
+            timePassed = time.time() - self.startTime
+            with open(self.inputFolder + "needle-timestamps.txt", "a") as file:
+                file.write(f"{timePassed} {pos[0]} {pos[1]} {pos[2]} {quat[0]} {quat[1]} {quat[2]} {quat[3]}\n")
         self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(T))
         return True
 
