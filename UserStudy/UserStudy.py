@@ -968,13 +968,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         shaftLength = 70/2
         handleLength = 40/2
 
-        compositeNeedleTip = self.makeCone(tipLength, tipAngle, 3)
+        compositeNeedleTip = self.makeTip(tipLength, tipAngle, 3)
         radius = compositeNeedleTip.GetRadius()
         compositeNeedleShaft = self.makeCylinderLine(
-            [0, 0, 0 + tipLength], shaftLength, radius
+            [0, 0, -(0 + tipLength)], shaftLength, radius, -1
         )
         compositeNeedleHandle = self.makeEllipsoid(
-            [0, 0, shaftLength + handleLength],
+            [0, 0, -(shaftLength + handleLength)],
             [handleLength / 10, handleLength / 10, handleLength],
         )
 
@@ -1346,10 +1346,22 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         coneModel.Update()
         return coneModel
 
-    def makeCylinderLine(self, point: list[float], height, radius):
+    def makeTip(self, height, angle, resolution):
+        coneModel = vtk.vtkConeSource()
+        radius = np.tan(np.radians(angle)) * height
+        coneModel.SetHeight(height)
+        coneModel.SetRadius(radius)
+        coneModel.SetDirection(0, 0, 1)
+        coneModel.SetCenter(0, 0, -(height / 2))
+        coneModel.SetResolution(coneModel.GetResolution() * resolution * 2)
+        coneModel.CappingOff()
+        coneModel.Update()
+        return coneModel
+
+    def makeCylinderLine(self, point: list[float], height, radius, direction=1):
         lineModel = vtk.vtkLineSource()
         lineModel.SetPoint1(point)
-        point[2] += height
+        point[2] += (height * direction)
         lineModel.SetPoint2(point)
         lineModel.Update()
 
@@ -1572,7 +1584,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     def updateAngleColor(self):
         cone_direction = self.getTransformMat(self.coloredAngle[2].GetName())[:3, 2]
-        needle_direction = self.getTransformMat(self.composite_needle.GetName())[:3, 2]
+        needle_direction = -self.getTransformMat(self.composite_needle.GetName())[:3, 2]
 
         cos_theta = np.dot(cone_direction, needle_direction) / (
             np.linalg.norm(cone_direction) * np.linalg.norm(needle_direction)
