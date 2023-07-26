@@ -93,10 +93,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         # hardcoded values for recorded data
         self.needle_registration = np.eye(4)
-        self.needle_registration = np.array([0,1,0,330.0],
-                                            [-1,0,0,-20.0],
-                                            [0,0,1,250.0],
-                                            [0,0,0,0])
+        self.needle_registration = np.array([[0,-1,0,236.0],
+                                            [-1,0,0,170.0],
+                                            [0,0,-1,47.0],
+                                            [0,0,0,1]])
         self.stream_live_data = False
 
     def initUI(self):
@@ -599,7 +599,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         # live data via ROS
         else:
-            self.needle_data = self.loadDataFromFile(self.needle_file, 0)
+            d = self.loadDataFromFile(self.needle_file, 0)
+            if not d == []:
+                self.needle_data = d
 
         data = self.needle_data[self.needle_pose_index]
         if not len(data) == 7:
@@ -617,7 +619,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         if len(pos) != 3 or len(quat) != 4:
             return False
         current = self.getTransformRot(pos, self.quaternionToRotationMatrix(quat))
-        T = np.matmul(current, self.needle_registration)
+        T = np.matmul(self.needle_registration, current)
+        print(current[0:3,3])
+        #print(self.needle_registration)
+        print(T)
         self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(T))
         return True
 
