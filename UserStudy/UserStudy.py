@@ -316,6 +316,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         flag = self.eventCount < 15
 
         if self.eventCount == 0:
+            self.eventCount = 4
             self.startText.SetDisplayVisibility(False)
             self.dropDownViewSelector.setCurrentIndex(8)
             self.orderSelect.setText("1245")
@@ -329,6 +330,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.regionColorTimer.start()
 
         if self.eventCount == 5:
+            self.eventCount = 9
             self.resetRegion()
             self.onToggleVisualizers()
             self.dropDownViewSelector.setCurrentIndex(13)
@@ -345,6 +347,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.startAngleColorTimer.start()
 
         if self.eventCount < 15 and self.eventCount >= 10:
+            self.eventCount = 14
             self.resetRegion()
             self.createInsertionRegion(self.eventCount - 5, flag)
             self.resetAngle()
