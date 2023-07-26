@@ -68,7 +68,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             os.path.dirname(os.path.abspath(__file__)) + "/Resources/Data/"
         )  # Hardcode input path here for testing purposes
         self.composite_needle = None
-        self.eventCount = 0
+        self.eventCount = 15
         self.eventChanged = False
 
         self.coloredAngle = []
@@ -302,6 +302,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
                 print(f": n={n}")
 
     def eventChange(self):
+
         if not self.eventChanged:
             with open(self.inputFolder + "timestamps.txt", "w") as file:
                 pass
