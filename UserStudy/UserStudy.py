@@ -869,7 +869,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         # origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
 
-        camera_2.SetPosition(224.975, 150.8, 200.68612593136095)
+        camera_2.SetPosition(224.975, 150.8, 149.38)
         camera_2.SetViewUp(
             0.004463893312410369, 0.9978291656684652, -0.06570410792233823
         )
