@@ -481,6 +481,7 @@ VIEW_MAP = {
             }
 
 def colorMap(n):
+    """Returns a list [{color array}, {# colors in map}]"""
     color_map = np.array([
                           [1.000, 0.000, 0.000],
                           [1.000, 0.071, 0.000],

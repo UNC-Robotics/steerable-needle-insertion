@@ -62,6 +62,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.initVariables()
         self.initUI()
 
+    # Global variables that should be defined upon module instantiation
     def initVariables(self):
         self.logic = UserStudyLogic()
         self.inputFolder = (
@@ -94,10 +95,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         # hardcoded values for recorded data
         self.needle_registration = np.eye(4)
-        self.needle_registration = np.array([[0,-1,0,236.0],
-                                            [-1,0,0,170.0],
-                                            [0,0,-1,47.0],
-                                            [0,0,0,1]])
+        self.needle_registration = np.array(
+            [[0, -1, 0, 236.0], [-1, 0, 0, 170.0], [0, 0, -1, 47.0], [0, 0, 0, 1]]
+        )
         self.stream_live_data = False
 
     def initUI(self):
@@ -122,11 +122,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.clearEnvironmentButton.connect(
             "clicked(bool)", self.onClearEnvironmentClicked
         )
-
-        self.moveNeedleButton = qt.QPushButton("Move Needle")
-        self.moveNeedleButton.toolTip = ""
-        self.moveNeedleButton.enabled = False
-        self.moveNeedleButton.connect("clicked(bool)", self.onMoveNeedleClicked)
 
         self.StartButton = qt.QPushButton("Start needle")
         self.StartButton.toolTip = "Start/stop needle movement"
@@ -182,14 +177,11 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.resetNeedleButton.connect("clicked(bool)", self.onResetNeedleButton)
 
         self.dropDownViewSelector = qt.QComboBox()
-        # self.dropDownViewSelector.setStyleSheet("margin-left:100%; margin-right:100%;")
         self.dropDownViewSelectorLabel = qt.QLabel("Select View: ")
         self.dropDownViewSelectorLabel.enabled = True
         self.dropDownViewSelectorLabel.setAlignment(qt.Qt.AlignCenter)
         self.dropDownViewSelector.enabled = True
         self.dropDownViewSelector.addItems(list(layouts.VIEW_MAP.keys()))
-        # for index in range(self.dropDownViewSelector.model().rowCount()):
-        #   self.dropDownViewSelector.setItemData(index, qt.Qt.AlignCenter, qt.Qt.TextAlignmentRole)
         self.dropDownViewSelector.currentIndexChanged.connect(self.onDropDownViewSelect)
 
         self.orderSelect = qt.QLineEdit()
@@ -232,6 +224,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             ],
         )
 
+        # Set slicer elements visible/not visible
         slicer.util.setDataProbeVisible(True)
         slicer.util.setModuleHelpSectionVisible(False)
         slicer.util.setModulePanelTitleVisible(False)
@@ -246,27 +239,31 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
                 ),
                 slicer.util.mainWindow().findChild(qt.QToolBar, "MarkupsToolBar"),
             ],
-        )
+        )  # ignore sequence browser toolbar and markups toolbar when setting toolbars visible
 
+        # hotkey to switch between participant view and researcher view (hide/show ui)
         self.switchUserShortcut = qt.QShortcut(
             qt.QKeySequence("Ctrl+B"), slicer.util.mainWindow()
         )
         self.switchUserShortcut.connect("activated()", self.switchUser)
 
+        # necessary to initialize views before assigning their cameras
         defaultView = "(5) Two Top Three Bottom"
 
         self.currentLayout = max(slicer.app.layoutManager().layout, self.currentLayout)
 
+        # create layout configuration
         slicer.app.layoutManager().layoutLogic().GetLayoutNode().AddLayoutDescription(
             self.currentLayout + 1, layouts.VIEW_MAP[defaultView][0]("12345")
         )
+        # apply layout configuration configuration
         slicer.app.layoutManager().setLayout(self.currentLayout + 1)
         self.currentLayout += 1
+        # set initial view to none
         slicer.mrmlScene.Clear(False)
         slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutNone)
 
-        # print(self.currentLayout)
-
+        # update color shifting regions every {interval} ms
         interval = 20
 
         self.regionColorTimer = qt.QTimer()
@@ -277,6 +274,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.startAngleColorTimer.setInterval(interval)
         self.startAngleColorTimer.connect("timeout()", self.updateAngleColor)
 
+        # press spacebar hotkey to update environment
         self.spaceBarPress = qt.QShortcut(
             qt.QKeySequence("Space"), slicer.util.mainWindow()
         )
@@ -284,26 +282,44 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         slicer.util.mainWindow().setWindowTitle("User Study")
 
+        # obtain 3d controllers for each view (necessary to decide which views to simulate "center view" button press in slicer)
         for n in range(5):
-            viewName = slicer.app.layoutManager().threeDWidget(n).threeDView().mrmlViewNode().GetName()
-            if viewName ==  "View1":
-                self.View1Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+            viewName = (
+                slicer.app.layoutManager()
+                .threeDWidget(n)
+                .threeDView()
+                .mrmlViewNode()
+                .GetName()
+            )
+            if viewName == "View1":
+                self.View1Controller = (
+                    slicer.app.layoutManager().threeDWidget(n).threeDController()
+                )
                 print(f"1: n={n}")
-            if viewName ==  "View2":
-                self.View2Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+            if viewName == "View2":
+                self.View2Controller = (
+                    slicer.app.layoutManager().threeDWidget(n).threeDController()
+                )
                 print(f"2: n={n}")
-            if viewName ==  "View3":
-                self.View3Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+            if viewName == "View3":
+                self.View3Controller = (
+                    slicer.app.layoutManager().threeDWidget(n).threeDController()
+                )
                 print(f"3: n={n}")
-            if viewName ==  "View4":
-                self.View4Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+            if viewName == "View4":
+                self.View4Controller = (
+                    slicer.app.layoutManager().threeDWidget(n).threeDController()
+                )
                 print(f"4: n={n}")
-            if viewName ==  "View5":
-                self.View5Controller = slicer.app.layoutManager().threeDWidget(n).threeDController()
+            if viewName == "View5":
+                self.View5Controller = (
+                    slicer.app.layoutManager().threeDWidget(n).threeDController()
+                )
                 print(f": n={n}")
 
+    # method called when spacebar pressed
     def eventChange(self):
-
+        # record timestamps for when spacebar pressed, collect needle time/position/orientation data
         if not self.eventChanged:
             with open(self.inputFolder + "timestamps.txt", "a") as file:
                 file.write("\n")
@@ -316,15 +332,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             with open(self.inputFolder + "timestamps.txt", "a") as file:
                 file.write(f"{timePassed}\n")
 
+        # boolean flag to decide whether insertion region should be a sphere or flat cylinder (circle)
         flag = self.eventCount < 15
 
+        # learning phase, align needle tip to position
         if self.eventCount == 0:
             self.eventCount = 4
             self.startText.SetDisplayVisibility(False)
             self.dropDownViewSelector.setCurrentIndex(8)
             self.orderSelect.setText("1245")
             self.onOrderSelectEnter()
-            # self.resetAngle()
 
         if self.eventCount < 5:
             self.resetRegion()
@@ -332,6 +349,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.onToggleVisualizers()
             self.regionColorTimer.start()
 
+        # learning phase, align needle orientation independent of position
         if self.eventCount == 5:
             self.eventCount = 9
             self.resetRegion()
@@ -349,6 +367,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.onToggleVisualizers()
             self.startAngleColorTimer.start()
 
+        # learning phase, align both tip position and orientation
         if self.eventCount < 15 and self.eventCount >= 10:
             self.eventCount = 14
             self.resetRegion()
@@ -361,6 +380,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.regionColorTimer.start()
             self.startAngleColorTimer.start()
 
+        # experiment portion, align needle to desired start pose (position and orientation)
         if self.eventCount < 30 and self.eventCount >= 15:
             self.phaseTwo()
             self.resetRegion()
@@ -377,6 +397,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         self.eventCount += 1
 
+    # handling removal of insertion region associated nodes (model,display,transform)
     def resetRegion(self):
         self.regionColorTimer.stop()
         for node in self.coloredRegion:
@@ -386,6 +407,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.coloredRegion = []
         self.coloredRegionRadius = None
 
+    # handling removal of insertion angle associated nodes (model,display,transform)
     def resetAngle(self):
         self.startAngleColorTimer.stop()
         for node in self.coloredAngle:
@@ -400,7 +422,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.insertionPose = []
         self.insertionPoseLength = None
 
+    # validate correctness of view order input
     def validateOrder(self, text):
+        # order must be a permutation of 12345
         regex = re.compile(f"[1-5]*")
         match = regex.fullmatch(text)
         if match:
@@ -413,8 +437,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         else:
             return False
 
+    # method called when view order input is confirmed (enter key pressed after writing input)
     def onOrderSelectEnter(self):
         inputText = self.orderSelect.text
+        # input text must be valid, a view must be selected, and length of input must match number of views in selection
         if (
             self.viewSelected
             and self.validateOrder(inputText)
@@ -428,14 +454,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             )
             slicer.app.layoutManager().setLayout(self.currentLayout + 1)
             self.currentLayout += 1
-            # print(self.currentLayout)
+            # turn border green for accepted input
             self.orderSelect.setStyleSheet("border: 1px solid green;")
             timer = qt.QTimer()
             timer.singleShot(1000, self.changeOrderColor)
         elif not inputText == "":
+            # turn border red for illegal input
             self.orderSelect.setStyleSheet("border: 1px solid red;")
             timer = qt.QTimer()
             timer.singleShot(1000, self.changeOrderColor)
+        # disable axis labels and bounding box in 3d views
         for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
             view.SetAxisLabelsVisible(False)
             view.SetBoxVisible(False)
@@ -443,6 +471,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     def changeOrderColor(self):
         self.orderSelect.setStyleSheet("")
 
+    # apply view selection
     def onDropDownViewSelect(self, index):
         text = self.dropDownViewSelector.itemText(index)
         if text == "":
@@ -458,8 +487,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.viewSelected = True
             self.onOrderSelectEnter()
 
+    # method called when show/hide ui hotkey is pressed (warning: hotkeys do not work when module is reloaded in slicer)
     def switchUser(self):
-        # print("ctrl b")
         if self.userSwitched:
             slicer.util.setMenuBarsVisible(True)
             slicer.util.mainWindow().findChild(
@@ -495,6 +524,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             slicer.util.setViewControllersVisible(False)
             self.userSwitched = True
 
+    # define qt UI layout methods for module
     def createHLayout(self, elements):
         rowLayout = qt.QHBoxLayout()
         for element in elements:
@@ -522,36 +552,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     def cleanup(self):
         pass
 
-        ################################
-        # User Study Environment Methods#
-        ################################
-
-    def onSetWorkspaceClicked(self):
-        # interactive folder selection
-        self.inputFolder = (
-            str(
-                qt.QFileDialog.getExistingDirectory(
-                    None, "Work space", self.inputFolder, qt.QFileDialog.ShowDirsOnly
-                )
-            )
-            + "/"
-        )
-
-    def onMoveNeedleClicked(self):
-        if self.composite_needle == None:
-            raise AttributeError("Composite needle not created")
-            return
-        translation = np.eye(4)
-        translation[:3, 3] = 10
-
-        original = self.getTransformMat(self.composite_needle.GetName())
-
-        update_transform = np.matmul(translation, original)
-
-        self.composite_needle.SetMatrixTransformToParent(
-            self.npToVtkMatrix(update_transform)
-        )
-
+    # if streaming, read sensor updates, if recording selected, begin playback
     def onStartNeedleClicked(self):
         # if data is already streaming, turn it off
         if self.needle_file.endswith("Data/"):
@@ -627,16 +628,17 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             return False
         current = self.getTransformRot(pos, self.quaternionToRotationMatrix(quat))
         T = np.matmul(self.needle_registration, current)
-        # print(current[0:3,3])
-        #print(self.needle_registration)
         print(T)
         if self.startTime is not None:
             timePassed = time.time() - self.startTime
             with open(self.inputFolder + "needle-timestamps.txt", "a") as file:
-                file.write(f"{timePassed} {pos[0]} {pos[1]} {pos[2]} {quat[0]} {quat[1]} {quat[2]} {quat[3]}\n")
+                file.write(
+                    f"{timePassed} {pos[0]} {pos[1]} {pos[2]} {quat[0]} {quat[1]} {quat[2]} {quat[3]}\n"
+                )
         self.composite_needle.SetMatrixTransformToParent(self.npToVtkMatrix(T))
         return True
 
+    # on recording selection in dropdown
     def onDropDownMovementSelect(self, index):
         text = self.dropDownMovement.itemText(index)
         if text == "":
@@ -646,8 +648,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.StartButton.enabled = True
             self.needleMovementSelected = True
         self.needle_file = self.inputFolder + text
-        # print(self.needle_file)
 
+    # on check/uncheck stream data checkbox
     def onStreamingCheck(self):
         checked = self.streamingCheckBox.isChecked()
 
@@ -658,7 +660,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.stream_live_data = True
             self.needle_file = self.inputFolder + "needle-tracker.txt"
             self.StartButton.enabled = True
-            # print(self.needle_file)
         else:
             self.StartButton.enabled = False
             self.stream_live_data = False
@@ -666,8 +667,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.dropDownMovement.enabled = True
             self.dropDownMovementLabel.enabled = True
             self.StartButton.enabled = False
-            # print(self.needle_file)
 
+    # on colored region checkbox checked/unchecked
     def onToggleVisualizers(self):
         checked = self.toggleVisualizers.isChecked()
 
@@ -702,10 +703,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
                     "RegionLegendModelDisplay"
                 ).SetVisibility(False)
 
+    ################################
+    # User Study Environment Methods#
+    ################################
+
+    # reset needle position and associated variables in 3d space (warning: breaks registration!)
     def onResetNeedleButton(self):
         self.needle_pose_index = 0
         self.needle_data = []
 
+        # TODO update registration reset
         self.needle_registration = np.eye(4)
         self.needle_registration[0:3, 3] = np.array(
             [330.0, -20.0, 250.0]
@@ -725,6 +732,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.npToVtkMatrix(initial_position)
         )
 
+    # soft reload on environment without restarting slicer (warning: may break things)
     def onClearEnvironmentClicked(self):
         slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
 
@@ -747,7 +755,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         slicer.mrmlScene.Clear(False)
 
-    # create vtk objects representing parts of the environment
+    # create environment objects, enable some UI elements
     def onLoadEnvironmentClicked(self):
         slicer.util.mainWindow().setWindowTitle("User Study")
 
@@ -779,8 +787,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.orderSelect.setText("1")
         self.onOrderSelectEnter()
 
+    # creates cloth associated nodes
     def createCloth(self):
-        # read in object size
+        # cloth.obj exported from blender. to replace cloth, render and export new object, replace both .obj and .mtl files
         path = self.inputFolder + "cloth.obj"
         slicer.util.loadModel(path)
         color = [119 / 255, 153 / 255, 189 / 255]
@@ -790,6 +799,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.clothDisplay.SetColor(color)
         self.clothDisplay.SetVisibility(False)
 
+    # hooks into LoadSegmentations module to load segmentation models
     def createSegmentations(self):
         self.segLogic = slicer.util.getModuleLogic("LoadSegmentations")
 
@@ -818,6 +828,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         self.segTransform.SetMatrixTransformToParent(self.npToVtkMatrix(transform))
 
+    # trigger experiment phase of study
     def phaseTwo(self):
         self.tissue[1].VisibilityOn()
         self.clothDisplay.SetVisibility(True)
@@ -825,21 +836,28 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         for node in nodes:
             node.SetDisplayVisibility(True)
 
+    #render views, setup cameras 1,2,4,5 
     def setCameras(self):
         self.resetFocals()
+
+        #cameras are associated with their respective views. e.g, View1 -> Camera, View2 -> Camera_1, etc
 
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
         camera.SetPosition(0, 0, 0)
         camera.SetViewUp(0, 0, 1)
         camera.SetFocalPoint(0, 0, 0)
         camera.SetPosition([222.5576399470194, -185.12465478378599, 266.6817368815024])
-        camera.SetViewUp([-0.0025715218187866242, 0.2989896106755466, 0.9542529014803259])
+        camera.SetViewUp(
+            [-0.0025715218187866242, 0.2989896106755466, 0.9542529014803259]
+        )
 
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
         camera_2.SetPosition(0, 0, 0)
         camera_2.SetViewUp(0, 0, 1)
         camera_2.SetFocalPoint(0, 0, 0)
 
+        #make composite needle handle invisible in view 3
+        #change needle shaft model in view 2 (uses different lighting settings)
         handle_views = []
         shaft_views = []
         for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
@@ -859,12 +877,15 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             if not view.GetName() == "View2":
                 shaft_views.append(view.GetID())
 
+        #models only visible in specified views in lists
         self.compositeNeedleHandle[1].SetViewNodeIDs(handle_views)
         self.compositeNeedleShaft[1].SetViewNodeIDs(shaft_views)
 
         camera_4 = slicer.mrmlScene.GetFirstNodeByName("Camera_3")
-        camera_4.SetPosition(-185.75776903637114, 155.14580392440647, 151.69601919675594)
-        camera_4.SetViewUp(0,0,1)
+        camera_4.SetPosition(
+            -185.75776903637114, 155.14580392440647, 151.69601919675594
+        )
+        camera_4.SetViewUp(0, 0, 1)
         camera_4.SetFocalPoint(0, 0, 0)
 
         camera_5 = slicer.mrmlScene.GetFirstNodeByName("Camera_4")
@@ -872,13 +893,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_5.SetViewUp(0, 1, 0)
         camera_5.SetFocalPoint(0, 0, 0)
 
+        #Need to move composite needle object before ego view tracking is updated
         camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
         initial_position = np.eye(4)
         initial_position[:3, 3] = [225.0, 150.0, 175.0]
         self.composite_needle.SetMatrixTransformToParent(
             self.npToVtkMatrix(initial_position)
         )
-        # origin = self.getTransformMat(self.composite_needle.GetName())[:3,3]
 
         camera_2.SetPosition(224.975, 150.8, 149.38)
         camera_2.SetViewUp(
@@ -887,10 +908,13 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         camera_2_focal = camera_2.GetFocalPoint()
 
+        # render views
         self.resetFocals()
 
         camera_2.SetFocalPoint(camera_2_focal)
 
+        #save camera positions/focals/viewup vectors
+        #using resetFocals() renders views, but can change camera setups
         self.camera = [camera.GetPosition(), camera.GetViewUp(), camera.GetFocalPoint()]
         self.camera_2 = [
             camera_2.GetPosition(),
@@ -908,6 +932,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             camera_5.GetFocalPoint(),
         ]
 
+    #restore cameras to previous values after a view render
     def resetCameras(self):
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
@@ -925,7 +950,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_2.SetViewUp(self.camera_2[1])
         camera_2.SetFocalPoint(self.camera_2[2])
         try:
-            camera_3.SetPosition(self.camera_3[0]); camera_3.SetViewUp(self.camera_3[1]); camera_3.SetFocalPoint(self.camera_3[2])
+            camera_3.SetPosition(self.camera_3[0])
+            camera_3.SetViewUp(self.camera_3[1])
+            camera_3.SetFocalPoint(self.camera_3[2])
         except:
             pass
         camera_4.SetPosition(self.camera_4[0])
@@ -935,14 +962,15 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         camera_5.SetViewUp(self.camera_5[1])
         camera_5.SetFocalPoint(self.camera_5[2])
 
-
+    #render views
     def resetFocals(self):
         for n in range(5):
             slicer.app.layoutManager().threeDWidget(
                 n
             ).threeDController().resetFocalPoint()
-    
 
+    #Need to set camera 3 up separately from others, since position is dynamic and attached to changing start poses
+    #Start poses not present in first part of study (matching needle tip to position)
     def setCamera3(self):
         self.View3Controller.resetFocalPoint()
         camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
@@ -969,15 +997,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             camera_3.GetFocalPoint(),
         ]
 
+    # initialize composite needle model. represents physical needle controller
     def createCompositeNeedle(self):
         opacity = 1
         white = [1, 1, 1]
         black = [0.1, 0.1, 0.1]
 
-        tipLength = 5/2
-        tipAngle = 15/2
-        shaftLength = 70/2
-        handleLength = 40/2
+        tipLength = 5 / 2
+        tipAngle = 15 / 2
+        shaftLength = 70 / 2
+        handleLength = 40 / 2
 
         compositeNeedleTip = self.makeTip(tipLength, tipAngle, 3)
         radius = compositeNeedleTip.GetRadius()
@@ -990,6 +1019,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
 
         transform = np.eye(4)
+        #setup transform cleanup for unused transforms
         cleanup_transforms = []
 
         self.compositeNeedleTip = self.initModel(
@@ -1021,6 +1051,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             "CompositeNeedle",
         )
 
+        #ego shaft lighting changes
         self.compositeNeedleEgoShaft[1].SetAmbient(0.73)
         self.compositeNeedleEgoShaft[1].SetDiffuse(0.91)
         self.compositeNeedleEgoShaft[1].SetSpecular(1)
@@ -1031,16 +1062,16 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     # create tissue rectangle
     def createTissue(self):
-        # read in object size
+        # read in object info
         tissue_data = self.loadDataFromFile(
             self.inputFolder + "tissue.txt", ignoreFirstLines=1
-        )[0]  # data in list
-        # print(tissue_data)
+        )[
+            0
+        ]  # data in list
         center = np.array([tissue_data[0], tissue_data[1], tissue_data[2]])
 
         transform = np.eye(4)
         transform[0:3, 3] = center
-        # print(transform)
         model = self.makeCube(tissue_data[3], tissue_data[4], tissue_data[5])
         color = [210 / 255, 187 / 255, 186 / 255]
         opacity = 1
@@ -1048,7 +1079,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.tissue[1].SetAmbient(0.7)
         self.tissue[1].SetDiffuse(0.29)
 
-    # create spherical obstacles
+    # create spherical obstacles (currently unused)
     def createObstacles(self):
         obstacle1_data = self.loadDataFromFile(
             self.inputFolder + "obstacle1.txt", ignoreFirstLines=1
@@ -1081,6 +1112,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             obstacle2_model, obstacle2_transform, "Obstacle2", color, opacity
         )
 
+    # creates line representing desired start pose for needle
     def createInsertionPose(self, ignore_lines):
         """Given .txt file, creates pose at insertion point"""
         pose_data = self.loadDataFromFile(
@@ -1176,6 +1208,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             model, transform, "InsertionRegion", color, opacity
         )
 
+    # Cone representing acceptable ranges of needle orientations
     def createInsertionAngle(self, ignore_lines):
         angle_data = self.loadDataFromFile(
             self.inputFolder + "angle.txt", ignoreFirstLines=1 + ignore_lines
@@ -1227,56 +1260,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.coloredAngleModel, transform, "InsertionAngle", color, opacity
         )
 
-    def createNeedle(self):
-        """Given .txt file, creates needle at desired point"""
-        needle_data = self.loadDataFromFile(
-            self.inputFolder + "needle.txt", ignoreFirstLines=1
-        )
-        needle_data = needle_data[0]
-
-        transform = np.eye(4)
-
-        theta = np.radians(90 - needle_data[5])
-        phi = np.radians(needle_data[6])
-
-        # X axis rotation matrix
-        rotation_matrix_x = np.array(
-            [
-                [1, 0, 0, 0],
-                [0, np.cos(theta), -np.sin(theta), 0],
-                [0, np.sin(theta), np.cos(theta), 0],
-                [0, 0, 0, 1],
-            ]
-        )
-
-        # Z axis rotation matrix
-        rotation_matrix_z = np.array(
-            [
-                [np.cos(phi), -np.sin(phi), 0, 0],
-                [np.sin(phi), np.cos(phi), 0, 0],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1],
-            ]
-        )
-
-        # Apply x rotation
-        transform = np.matmul(rotation_matrix_x, transform)
-        # Apply z rotation
-        transform = np.matmul(rotation_matrix_z, transform)
-
-        transform = np.round(transform, 2)
-
-        # Move needle to desired start coordinates
-        start_coords = np.eye(4)
-        start_coords[:3, 3] = needle_data[:3]
-        transform = np.matmul(start_coords, transform)
-
-        color = [1, 1, 1]
-        opacity = 1
-        model = self.makeCylinder(needle_data[3], needle_data[4])
-
-        self.initModel(model, transform, "Needle", color, opacity)
-
+    #creates markup representing steerable needle motion planning (currently unused)
     def createPlan(self):
         plan_data = self.loadDataFromFile(
             self.inputFolder + "plan.txt", ignoreFirstLines=1
@@ -1291,7 +1275,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         for index, row in enumerate(plan):
             plan_node.AddControlPoint(row[0], row[1], row[2], f"Plan{index}")
 
-    # create fiducial at goal pos
+    # create fiducial at steerable needle goal position (currently unused)
     def createGoal(self):
         goal_data = self.loadDataFromFile(
             self.inputFolder + "goal.txt", ignoreFirstLines=1
@@ -1304,6 +1288,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         fiducial_node.AddControlPoint(goal[0], goal[1], goal[2], "Goal")
         self.goal = fiducial_node
 
+    # create text prompting user to start study
+    # TODO fix start position in starttext.txt
     def createStartText(self):
         data = self.loadDataFromFile(
             self.inputFolder + "starttext.txt", ignoreFirstLines=1
@@ -1317,6 +1303,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         fiducial_node.GetDisplayNode().SetGlyphScale(0)
         fiducial_node.SetDisplayVisibility(True)
         self.startText = fiducial_node
+
+    #########
+    # create object vtk models
+    #########
 
     def makeCube(self, size_x, size_y, size_z):
         cubeModel = vtk.vtkCubeSource()
@@ -1372,7 +1362,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     def makeCylinderLine(self, point: list[float], height, radius, direction=1):
         lineModel = vtk.vtkLineSource()
         lineModel.SetPoint1(point)
-        point[2] += (height * direction)
+        point[2] += height * direction
         lineModel.SetPoint2(point)
         lineModel.Update()
 
@@ -1579,6 +1569,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         region_display.SetColor(color)
 
+        # color bar position marking
+
         if (
             self.colorTableRegionIndex is not None
             and self.colorTableRegionIndex != colorPos
@@ -1619,6 +1611,8 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         self.coloredAngle[1].SetColor(color)
 
+        # color bar position marking
+
         if (
             self.colorTableAngleIndex is not None
             and self.colorTableAngleIndex != colorPos
@@ -1633,6 +1627,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.colorTableAnglePrev = color
             self.colorTableAngle.SetColor(colorPos, 0, 0, 0, 1)
 
+    # create color bars to display color map
     def createColorRegionLegend(self):
         self.colorTableRegion = slicer.vtkMRMLColorTableNode()
         self.colorTableRegion.SetTypeToUser()
@@ -1646,6 +1641,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         slicer.mrmlScene.AddNode(self.colorTableRegion)
 
+        # initialize dummy model
         sphere = vtk.vtkSphereSource()
         sphere.SetCenter(0, 0, 0)
         sphere.SetRadius(1)
@@ -1691,6 +1687,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         slicer.mrmlScene.AddNode(self.colorTableAngle)
 
+        #initialize dummy node 
         sphere = vtk.vtkSphereSource()
         sphere.SetCenter(0, 0, 0)
         sphere.SetRadius(1)
@@ -1760,7 +1757,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 # UserStudyLogic
 #
 
-
+# unused in study
 class UserStudyLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
     computation done by your module.  The interface
