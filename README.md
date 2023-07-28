@@ -45,5 +45,5 @@ of the needle controller. Additionally, other UI elements are enabled.
 #### UI Elements:
 - Select View\
   &nbsp; &nbsp; The Select View dropdown menu allows you to select one of any preconfigured 16 layouts for your 3D views. These views span\
-  &nbsp; &nbsp; from 1 displayed 3D panel to 5 displayed 3D panels. Each view panel is associated with a virtual camera object defining the\
-  &nbsp; &nbsp; perspective of the view on the virtual environment.
+  &nbsp; &nbsp; from 1 displayed 3D panel to 5 displayed 3D panels. Each view panel is associated with a virtual camera object defining\
+  &nbsp; &nbsp; the perspective of the view on the virtual environment.
