@@ -1,2 +1,2 @@
 # UserStudyNeedleStartPose
-3D Slicer visualization for user study
+This repository contains a module for 3D Slicer (v5.2.2) 
