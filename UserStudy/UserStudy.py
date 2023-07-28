@@ -95,9 +95,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
         # hardcoded values for recorded data
         self.needle_registration = np.eye(4)
-        self.needle_registration = np.array(
-            [[0, -1, 0, 236.0], [-1, 0, 0, 170.0], [0, 0, -1, 47.0], [0, 0, 0, 1]]
-        )
+        self.needle_registration = np.array([[0,-1,0,233.0],
+                                            [-1,0,0,160.0],
+                                            [0,0,-1,50.0],
+                                            [0,0,0,1]])
         self.stream_live_data = False
 
     def initUI(self):
@@ -1666,7 +1667,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         displayLegendNode.SetAndObservePrimaryDisplayNode(displayLegend)
         legendModel.AddAndObserveDisplayNodeID(displayLegendNode.GetID())
 
-        displayLegendNode.SetNumberOfLabels(2)
+        displayLegendNode.SetNumberOfLabels(0)
         displayLegendNode.SetMaxNumberOfColors(100)
         displayLegendNode.SetSize(0.1, 0.85)
         displayLegendNode.SetPosition(0.85, 0.4)
@@ -1712,7 +1713,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         displayLegendNode.SetAndObservePrimaryDisplayNode(displayLegend)
         legendModel.AddAndObserveDisplayNodeID(displayLegendNode.GetID())
 
-        displayLegendNode.SetNumberOfLabels(2)
+        displayLegendNode.SetNumberOfLabels(0)
         displayLegendNode.SetMaxNumberOfColors(100)
         displayLegendNode.SetSize(0.1, 0.85)
         displayLegendNode.SetPosition(0.98, 0.4)
