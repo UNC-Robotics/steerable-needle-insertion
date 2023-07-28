@@ -1,6 +1,6 @@
 # UserStudyNeedleStartPose
 
-## Introduction
+# Introduction
 This repository contains a module for 3D Slicer (v5.2.2).
 The purpose of this module is to create a platform for an academic user study 
 simulating a surgical setup for the manual initial insertion of a multi-stage steerable needle robot 
@@ -15,7 +15,7 @@ to a physical environment. The corresponding physical needle controller is regis
 and updates changes in physical position to the virtual environment. However, the module is able to run independently of
 any hardware required for the user study.
 
-## Installation
+# Installation
 First, clone this repository to any location on your device.
 To load the anatomical segmentations into the environment later on, you'll need to download some [segmentation files](https://drive.google.com/drive/folders/1-5JbVDJLhfWWK-OxQ-U0SFezlpGjRG-k?usp=sharing)
 to any directory. Ensure that all three files are located in the same directory, and file names are not altered. 
@@ -31,3 +31,19 @@ You'll be prompted to select a directory in your file explorer. Navigate to the 
 - UserStudy
 
 Add both. The LoadSegmentations module is a helper module used to load the segmentation files into the virtual environment.
+
+# Usage
+
+With the UserStudy module selected, you should have a dropdown section titled "UserStudy" in your module panel on 3D Slicer.
+This dropdown section contains the UI used to configure environment settings. The UserStudy module's functionality is designed to be
+self-contained, so it isn't be necessary to access other elements of the 3D Slicer UI to set up the virtual environment.
+
+Within the module's UI, click the "Load Environment" button. You'll be prompted to select a directory. Select the directory containing
+the segmentation files downloaded earlier. Once you've selected a directory, you should see a single 3D panel in Slicer, containing a static model
+of the needle controller. Additionally, other UI elements are enabled.
+
+#### UI Elements:
+- Select View\
+  &nbsp; &nbsp; The Select View dropdown menu allows you to select one of any preconfigured 16 layouts for your 3D views. These views span\
+  &nbsp; &nbsp; from 1 displayed 3D panel to 5 displayed 3D panels. Each view panel is associated with a virtual camera object defining the\
+  &nbsp; &nbsp; perspective of the view on the virtual environment.
