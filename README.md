@@ -7,8 +7,7 @@ simulating a surgical setup for the manual initial insertion of a multi-stage st
 conducting a liver biopsy. In practice, the variability in precision during the initial insertion of a steerable needle 
 robot substantially influences the probability of success for a surgical procedure, such as a biopsy, under motion 
 planning constraints. To refine this technology for reliable usage in a real surgical environment, it's essential 
-to gather data on user behavior with respect to the precision of the initial insertion and the potential for visual elements 
-to alter such behavior. The purpose of the proposed study is to gather this data. 
+to gather data on user behavior with respect to the precision of the initial insertion. The purpose of the proposed study is to gather this data. 
 
 This module is intended to be used alongside a physical setup, mapping the virtual elements of the simulation 
 to a physical environment. The virtual environment is registered in both position and orientation to the physical environment, 
