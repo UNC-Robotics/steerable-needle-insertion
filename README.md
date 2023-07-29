@@ -34,7 +34,7 @@ Add both. The LoadSegmentations module is a helper module used to load the anato
 
 # UI Elements
 
-With the UserStudy module selected, you should have a dropdown section titled "UserStudy" in your module panel on 3D Slicer.
+With the UserStudy module selected, you will be presented a dropdown section titled "UserStudy" in your module panel on 3D Slicer.
 This dropdown section contains the UI used to configure environment settings. The UserStudy module's functionality is designed to be
 self-contained, so it isn't necessary to access other elements of the 3D Slicer UI to set up the virtual environment.
 
