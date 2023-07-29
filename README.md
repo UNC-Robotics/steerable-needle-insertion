@@ -39,7 +39,7 @@ This dropdown section contains the UI used to configure environment settings. Th
 self-contained, so it isn't necessary to access other elements of the 3D Slicer UI to set up the virtual environment.
 
 Within the module's UI, click the "Load Environment" button. You'll be prompted to select a directory. Select the directory containing
-the segmentation files downloaded earlier. Once you've selected a directory, you should see a single 3D panel in Slicer, containing a static model
+the segmentation files downloaded earlier. Once you've selected a directory, you will see a single 3D panel in Slicer, displaying a static model
 of the needle controller. Additionally, other UI elements are enabled.
 
 The entire module UI is included for research purposes. Participants will only be displayed the 3D panel views. To switch between participant and researcher views, press CTRL+B
