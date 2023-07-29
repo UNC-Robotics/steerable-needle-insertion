@@ -42,8 +42,6 @@ Within the module's UI, click the "Load Environment" button. You'll be prompted 
 the segmentation files downloaded earlier. Once you've selected a directory, you will see a single 3D panel in Slicer, displaying a static model
 of the needle controller. Additionally, other UI elements are enabled.
 
-The entire module UI is included for research purposes. Participants will only be presented with the 3D panel views. To switch between participant and researcher views, press CTRL+B
-
 - **Select View**\
   &nbsp; &nbsp; The Select View dropdown menu allows you to select one of any preconfigured 16 layouts for your 3D views. These layouts span from one displayed 3D panel to five displayed 3D panels. Each view panel is associated with a virtual camera object defining the perspective of the view on the virtual environment. Read more about the views below.
 - **Select Order**\
@@ -58,6 +56,8 @@ The entire module UI is included for research purposes. Participants will only b
   &nbsp; &nbsp; Reset position and orientation of needle to its start pose.
 - **Colored Regions**\
   &nbsp; &nbsp; Enable or disable display of color-changing regions, along with their corresponding color legends.
+
+The entire module UI is included for research purposes. Participants will only be presented with the 3D panel views. To switch between participant and researcher views, press CTRL+B
 
 # Views/Cameras:
 - **View 1:**\
