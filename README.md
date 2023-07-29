@@ -45,7 +45,7 @@ of the needle controller. Additionally, other UI elements are enabled.
 The entire module UI is included for research purposes. Participants will only be displayed the 3D panel views. To switch between participant and researcher views, press CTRL+B
 
 - **Select View**\
-  &nbsp; &nbsp; The Select View dropdown menu allows you to select one of any preconfigured 16 layouts for your 3D views. These views span from one displayed 3D panel to five displayed 3D panels. Each view panel is associated with a virtual camera object defining the perspective of the view on the virtual environment. Read more about the views below.
+  &nbsp; &nbsp; The Select View dropdown menu allows you to select one of any preconfigured 16 layouts for your 3D views. These layouts span from one displayed 3D panel to five displayed 3D panels. Each view panel is associated with a virtual camera object defining the perspective of the view on the virtual environment. Read more about the views below.
 - **Select Order**\
   &nbsp; &nbsp; The Select Order input field changes the order of the 3D views based on the input. Views are assigned order from left to right, top to bottom.
 - **Stream Data**\
