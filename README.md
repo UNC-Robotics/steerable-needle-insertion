@@ -16,7 +16,7 @@ model. However, the module is able to run independently of any hardware required
 
 # Installation
 First, clone this repository to any location on your device.
-To load the anatomical segmentations into the environment later on, you'll need to download some [segmentation files](https://drive.google.com/drive/folders/1-5JbVDJLhfWWK-OxQ-U0SFezlpGjRG-k?usp=sharing)
+To load the anatomical segmentations into the environment later on, you'll need to download some [segmentation files](https://drive.google.com/drive/folders/1-5JbVDJLhfWWK-OxQ-U0SFezlpGjRG-k?usp=sharing)[1]
 to any directory. Ensure that all three files are located in the same directory, and file names are not altered. 
 To run the module in 3D Slicer locally, you'll need to install 3D Slicer version 5.2.2 at https://download.slicer.org/.
 
@@ -76,3 +76,7 @@ The user study presents participants with a learning phase, during which the par
 Both the color-changing regions will change color indicative of precision, where green is most precise and red is least. Positional precision is calculated by the distance from the desired insertion point on the skin model to the position of the needle's tip. Any distance beyond the radius of the circle (or a sphere during the learning phase) is considered 0% precise. Similarly, orientational precision is calculated by the angular difference between the forward vectors of the desired start pose line, and the tip of the needle. Any angular difference exceeding the range of angles represented by the cone is considered 0% precise.
 
 At any time during the study, participants are able to press spacebar to proceed to the next step.
+
+# References
+
+[1]I. Fried, A. J. Akulian, and R. Alterovitz, “A Clinical Dataset for the Evaluation of Motion Planners in Medical Applications,” 2022.
