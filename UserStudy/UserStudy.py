@@ -24,13 +24,13 @@ class UserStudy(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = (
-            "UserStudy"  # TODO make this more human readable by adding spaces
+            "UserStudy"
         )
         self.parent.categories = ["User Study"]
         self.parent.dependencies = []
         self.parent.contributors = [
             "Janine Hoelscher"
-        ]  # replace with "Firstname Lastname (Organization)"
+        ]
         self.parent.helpText = """
 This is an example of scripted loadable module bundled in an extension.
 It performs a simple thresholding on the input volume and optionally captures a screenshot.
@@ -708,7 +708,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
     # User Study Environment Methods#
     ################################
 
-    # reset needle position and associated variables in 3d space (warning: breaks registration!)
+    # reset needle position and associated variables in 3d space (warning: breaks registration if streaming data)
     def onResetNeedleButton(self):
         self.needle_pose_index = 0
         self.needle_data = []
@@ -733,7 +733,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.npToVtkMatrix(initial_position)
         )
 
-    # soft reload on environment without restarting slicer (warning: may break things)
+    # soft reload on environment without restarting slicer
     def onClearEnvironmentClicked(self):
         slicer.mrmlScene.GetSubjectHierarchyNode().RemoveAllItems(True)
 
@@ -1290,7 +1290,6 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         self.goal = fiducial_node
 
     # create text prompting user to start study
-    # TODO fix start position in starttext.txt
     def createStartText(self):
         data = self.loadDataFromFile(
             self.inputFolder + "starttext.txt", ignoreFirstLines=1
