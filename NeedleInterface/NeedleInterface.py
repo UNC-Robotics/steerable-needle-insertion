@@ -12,11 +12,11 @@ import LoadSegmentations
 
 _EPS = np.finfo(float).eps * 4.0
 #
-# UserStudy
+# NeedleInterface
 #
 
 
-class UserStudy(ScriptedLoadableModule):
+class NeedleInterface(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
     """
@@ -24,9 +24,9 @@ class UserStudy(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = (
-            "UserStudy"
+            "NeedleInterface"
         )
-        self.parent.categories = ["User Study"]
+        self.parent.categories = ["Needle Interface"]
         self.parent.dependencies = []
         self.parent.contributors = [
             "Janine Hoelscher"
@@ -43,11 +43,11 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 
 
 #
-# UserStudyWidget
+# NeedleInterfaceWidget
 #
 
 
-class UserStudyWidget(ScriptedLoadableModuleWidget):
+class NeedleInterfaceWidget(ScriptedLoadableModuleWidget):
     """Uses ScriptedLoadableModuleWidget base class, available at:
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
     """
@@ -64,7 +64,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     # Global variables that should be defined upon module instantiation
     def initVariables(self):
-        self.logic = UserStudyLogic()
+        self.logic = NeedleInterfaceLogic()
         self.inputFolder = (
             os.path.dirname(os.path.abspath(__file__)) + "/Resources/Data/"
         )  # Hardcode input path here for testing purposes
@@ -210,9 +210,9 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             self.toggleVisualizers, qt.Qt.AlignCenter
         )
 
-        self.userStudySection = self.newSection("User Study")
-        self.userStudyLayout = self.newHItemLayout(
-            self.userStudySection,
+        self.needleInterfaceSection = self.newSection("Needle Interface")
+        self.needleInterfaceLayout = self.newHItemLayout(
+            self.needleInterfaceSection,
             [
                 [None, self.dropDownViewSelectorLabel, self.orderSelectLabel],
                 [None, self.comboViewSelectOrder],
@@ -281,7 +281,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         self.spaceBarPress.connect("activated()", self.eventChange)
 
-        slicer.util.mainWindow().setWindowTitle("User Study")
+        slicer.util.mainWindow().setWindowTitle("Needle Interface")
 
         # obtain 3d controllers for each view (necessary to decide which views to simulate "center view" button press in slicer)
         for n in range(5):
@@ -705,7 +705,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
                 ).SetVisibility(False)
 
     ################################
-    # User Study Environment Methods#
+    # Needle Interface Environment Methods#
     ################################
 
     # reset needle position and associated variables in 3d space (warning: breaks registration if streaming data)
@@ -758,7 +758,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
     # create environment objects, enable some UI elements
     def onLoadEnvironmentClicked(self):
-        slicer.util.mainWindow().setWindowTitle("User Study")
+        slicer.util.mainWindow().setWindowTitle("Needle Interface")
 
         self.loadEnvironmentButton.enabled = False
         self.clearEnvironmentButton.enabled = True
@@ -829,7 +829,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         )
         self.segTransform.SetMatrixTransformToParent(self.npToVtkMatrix(transform))
 
-    # trigger experiment phase of study
+    # trigger experiment phase
     def phaseTwo(self):
         self.tissue[1].VisibilityOn()
         self.clothDisplay.SetVisibility(True)
@@ -971,7 +971,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
             ).threeDController().resetFocalPoint()
 
     #Need to set camera 3 up separately from others, since position is dynamic and attached to changing start poses
-    #Start poses not present in first part of study (matching needle tip to position)
+    #Start poses not present in first part (matching needle tip to position)
     def setCamera3(self):
         self.View3Controller.resetFocalPoint()
         camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
@@ -1289,7 +1289,7 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
         fiducial_node.AddControlPoint(goal[0], goal[1], goal[2], "Goal")
         self.goal = fiducial_node
 
-    # create text prompting user to start study
+    # create text prompting user to start
     def createStartText(self):
         data = self.loadDataFromFile(
             self.inputFolder + "starttext.txt", ignoreFirstLines=1
@@ -1754,11 +1754,10 @@ class UserStudyWidget(ScriptedLoadableModuleWidget):
 
 
 #
-# UserStudyLogic
+# NeedleInterfaceLogic
 #
 
-# unused in study
-class UserStudyLogic(ScriptedLoadableModuleLogic):
+class NeedleInterfaceLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
     computation done by your module.  The interface
     should be such that other python code can import
@@ -1830,7 +1829,7 @@ class UserStudyLogic(ScriptedLoadableModuleLogic):
 
         # Capture screenshot
         if enableScreenshots:
-            self.takeScreenshot("UserStudyTest-Start", "MyScreenshot", -1)
+            self.takeScreenshot("NeedleInterfaceTest-Start", "MyScreenshot", -1)
 
         logging.info("Processing completed")
 
@@ -1860,7 +1859,7 @@ class UserStudyLogic(ScriptedLoadableModuleLogic):
         return [pos, quat]
 
 
-class UserStudyTest(ScriptedLoadableModuleTest):
+class NeedleInterfaceTest(ScriptedLoadableModuleTest):
     """
     This is the test case for your scripted module.
     Uses ScriptedLoadableModuleTest base class, available at:
@@ -1874,9 +1873,9 @@ class UserStudyTest(ScriptedLoadableModuleTest):
     def runTest(self):
         """Run as few or as many tests as needed here."""
         self.setUp()
-        self.test_UserStudy1()
+        self.test_NeedleInterface1()
 
-    def test_UserStudy1(self):
+    def test_NeedleInterface1(self):
         """Ideally you should have several levels of tests.  At the lowest level
         tests should exercise the functionality of the logic with different inputs
         (both valid and invalid).  At higher levels your tests should emulate the
@@ -1902,6 +1901,6 @@ class UserStudyTest(ScriptedLoadableModuleTest):
         self.delayDisplay("Finished with download and loading")
 
         volumeNode = slicer.util.getNode(pattern="FA")
-        logic = UserStudyLogic()
+        logic = NeedleInterfaceLogic()
         self.assertIsNotNone(logic.hasImageData(volumeNode))
         self.delayDisplay("Test passed!")

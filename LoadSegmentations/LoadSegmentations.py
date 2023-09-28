@@ -16,7 +16,7 @@ class LoadSegmentations(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Load Segmentations" # TODO make this more human readable by adding spaces
-    self.parent.categories = ["User Study"]
+    self.parent.categories = ["Needle Interface"]
     self.parent.dependencies = []
     self.parent.contributors = ["UNC Computational Robotics"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
