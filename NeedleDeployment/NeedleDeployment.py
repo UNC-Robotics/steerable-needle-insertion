@@ -763,6 +763,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.loadEnvironmentButton.enabled = False
         self.clearEnvironmentButton.enabled = True
 
+        self.createNeedlePlan()
         self.createCompositeNeedle()
         self.createTissue()
         self.createCloth()
@@ -788,6 +789,117 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.orderSelect.setText("1")
         self.onOrderSelectEnter()
 
+
+    # loads needle deployment data and creates plan and funnel shapes
+    def createNeedlePlan(self):
+        path = self.inputFolder + "needle_deployment.txt"
+        data = np.array(self.loadDataFromFile(path, 1))
+
+        #organize data
+        #needle plan 
+        plan_positions = data[:, 7:10]
+        plan_quaternions = data[:, 10:14]
+
+        #actual trajectory
+        trajectory_positions = data[:, 0:3]
+        trajectory_quaternions = data[:, 3:7]
+
+        #position deviation: distance to original plan, maximum allowable distance
+        position_dev = data[:,14:16]
+
+
+        #orientation deviation: angle between simulated trajectory orientation and original plan, maximum allowable angle
+        orientation_dev = data[:, 16:18]
+
+        print(data.shape)
+        num_points = data.shape[0]
+        plan_radii = np.full((num_points, 1), 0.5)
+        [plan_node, plan_display_node] = self.createLine(plan_positions, plan_radii, [0, 0, 1], 1.0, "needle-plan") 
+        print(position_dev[:,1])
+        [funnel_node, funnel_display_node] = self.createLine(plan_positions, position_dev[:,1], [0, 0, 1], 0.4, "needle-funnel") 
+
+        
+
+
+    def createLine(self, points, radii, color = [0, 0, 1], plan_opacity = 0.5, name=" "):
+        plan = vtk.vtkPolyData()
+        pts = vtk.vtkPoints()
+        npoints = len(points)
+        pts.SetNumberOfPoints(npoints)
+        for i in range(npoints):
+            pts.SetPoint(i, points[i][0], points[i][1], points[i][2])
+        polyline = vtk.vtkCellArray()
+        polyline.InsertNextCell(npoints)
+        for i in range(npoints):
+            polyline.InsertCellPoint(i)
+        plan.SetPoints(pts)
+        plan.SetLines(polyline)
+
+        radius_array = vtk.vtkDoubleArray()
+        radius_array.SetName('radius')
+        radius_array.SetNumberOfValues(npoints)
+        # radius may have negative values so we just offset using the minimum value
+        radii_offset =  0.05
+        for i in range(npoints):
+            radius_array.SetValue(i, radii[i] + radii_offset)
+        plan.GetPointData().AddArray(radius_array)
+
+        # plan_radius = 0.5
+        # plan_radius_array = vtk.vtkDoubleArray()
+        # plan_radius_array.SetName('plan_radius')
+        # plan_radius_array.SetNumberOfValues(npoints)
+        # for i in range(npoints):
+        #     plan_radius_array.SetValue(i,plan_radius)
+        # plan.GetPointData().AddArray(plan_radius_array)
+
+        #single line plan
+        # plan_filter = vtk.vtkPassThrough()
+        # plan_filter.SetInputData(plan)
+        # plan_filter.Update()
+        #tube plan
+        plan_filter = vtk.vtkTubeFilter()
+        plan_filter.SetInputData(plan)
+        plan_filter.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, 'radius')
+        plan_filter.SetNumberOfSides(25)
+        plan_filter.SidesShareVerticesOn()
+        plan_filter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
+        plan_filter.CappingOn()
+        plan_filter.Update()
+
+        plan_node = slicer.vtkMRMLModelNode()
+        plan_node.SetName(name)
+        plan_node.SetPolyDataConnection(plan_filter.GetOutputPort())
+
+        plan_display_node = slicer.vtkMRMLModelDisplayNode()
+        plan_display_node.SetColor(color[0], color[1], color[2])
+        plan_display_node.SetOpacity(plan_opacity)
+
+        slicer.mrmlScene.AddNode(plan_display_node)
+        plan_node.SetAndObserveDisplayNodeID(plan_display_node.GetID())
+        slicer.mrmlScene.AddNode(plan_node)
+
+        # tube_filter = vtk.vtkTubeFilter()
+        # tube_filter.SetInputData(plan)
+        # tube_filter.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, 'radius')
+        # tube_filter.SetNumberOfSides(25)
+        # tube_filter.SidesShareVerticesOn()
+        # tube_filter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
+        # tube_filter.CappingOn()
+        # tube_filter.Update()
+
+        # funnel_node = slicer.vtkMRMLModelNode()
+        # funnel_node.SetName('Funnel_' + str(id))
+        # funnel_node.SetPolyDataConnection(tube_filter.GetOutputPort())
+
+        # funnel_display_node = slicer.vtkMRMLModelDisplayNode()
+        # funnel_display_node.SetColor(color[0], color[1], color[2])
+        # funnel_display_node.SetOpacity(funnel_opacity)
+
+        return plan_node, plan_display_node
+
+
+
+        
 
     # creates cloth associated nodes
     def createCloth(self):
