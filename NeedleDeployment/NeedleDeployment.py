@@ -844,19 +844,6 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             radius_array.SetValue(i, radii[i] + radii_offset)
         plan.GetPointData().AddArray(radius_array)
 
-        # plan_radius = 0.5
-        # plan_radius_array = vtk.vtkDoubleArray()
-        # plan_radius_array.SetName('plan_radius')
-        # plan_radius_array.SetNumberOfValues(npoints)
-        # for i in range(npoints):
-        #     plan_radius_array.SetValue(i,plan_radius)
-        # plan.GetPointData().AddArray(plan_radius_array)
-
-        #single line plan
-        # plan_filter = vtk.vtkPassThrough()
-        # plan_filter.SetInputData(plan)
-        # plan_filter.Update()
-        #tube plan
         plan_filter = vtk.vtkTubeFilter()
         plan_filter.SetInputData(plan)
         plan_filter.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, 'radius')
@@ -878,22 +865,6 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         plan_node.SetAndObserveDisplayNodeID(plan_display_node.GetID())
         slicer.mrmlScene.AddNode(plan_node)
 
-        # tube_filter = vtk.vtkTubeFilter()
-        # tube_filter.SetInputData(plan)
-        # tube_filter.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, 'radius')
-        # tube_filter.SetNumberOfSides(25)
-        # tube_filter.SidesShareVerticesOn()
-        # tube_filter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
-        # tube_filter.CappingOn()
-        # tube_filter.Update()
-
-        # funnel_node = slicer.vtkMRMLModelNode()
-        # funnel_node.SetName('Funnel_' + str(id))
-        # funnel_node.SetPolyDataConnection(tube_filter.GetOutputPort())
-
-        # funnel_display_node = slicer.vtkMRMLModelDisplayNode()
-        # funnel_display_node.SetColor(color[0], color[1], color[2])
-        # funnel_display_node.SetOpacity(funnel_opacity)
 
         return plan_node, plan_display_node
 
@@ -932,14 +903,15 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             node.SetDisplayVisibility(False)
             node.SetAndObserveTransformNodeID(self.segTransform.GetID())
 
-        transform = np.array(
-            [
-                [-0.116671, -4.996e-16, 0.993171, 381.00],
-                [-0.179286, -0.983571, -0.0210613, 167.79],
-                [0.976854, -0.180519, 0.114754, -23.50],
-                [0, 0, 0, 1],
-            ]
-        )
+        # transform = np.array(
+        #     [
+        #         [-0.116671, -4.996e-16, 0.993171, 381.00],
+        #         [-0.179286, -0.983571, -0.0210613, 167.79],
+        #         [0.976854, -0.180519, 0.114754, -23.50],
+        #         [0, 0, 0, 1],
+        #     ]
+        # )
+        transform = np.eye(4)
         self.segTransform.SetMatrixTransformToParent(self.npToVtkMatrix(transform))
 
     # trigger experiment phase
