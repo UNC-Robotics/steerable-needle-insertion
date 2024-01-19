@@ -811,12 +811,14 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         #orientation deviation: angle between simulated trajectory orientation and original plan, maximum allowable angle
         orientation_dev = data[:, 16:18]
 
-        print(data.shape)
+        #create Line structures for the plan and the surrounding funnel
         num_points = data.shape[0]
         plan_radii = np.full((num_points, 1), 0.5)
         [plan_node, plan_display_node] = self.createLine(plan_positions, plan_radii, [0, 0, 1], 1.0, "needle-plan") 
-        print(position_dev[:,1])
         [funnel_node, funnel_display_node] = self.createLine(plan_positions, position_dev[:,1], [0, 0, 1], 0.4, "needle-funnel") 
+
+        #create a target fiducial
+        self.createFiducial(plan_positions[-1,:])
 
         
 
@@ -868,6 +870,14 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         return plan_node, plan_display_node
 
+    def createFiducial(self, point, name=" "):
+        
+        
+        fiducial_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+        fiducial_node.SetName("Target")
+        fiducial_node.GetDisplayNode().SetSelectedColor([1, 0, 1])
+        fiducial_node.SetDisplayVisibility(True)
+        fiducial_node.AddControlPoint(point[0], point[1], point[2], name)
 
 
         
