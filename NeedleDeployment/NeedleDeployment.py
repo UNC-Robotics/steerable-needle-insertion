@@ -907,6 +907,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         plan_transforms = np.array(plan_transforms)
         self.plan_directions = plan_transforms[:, :, 2]
 
+        # rotate transforms to align with allowable position axes
         plan_transforms = np.matmul(plan_transforms, self.rotateAroundX(np.radians(90)))
         plan_transforms = np.round(plan_transforms, 2)
 
