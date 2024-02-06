@@ -5,6 +5,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 import math
 import numpy as np
+from scipy.spatial import cKDTree
 import Resources.UI.Layouts as layouts
 import re
 import time
@@ -23,14 +24,10 @@ class NeedleDeployment(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = (
-            "NeedleDeployment"
-        )
+        self.parent.title = "NeedleDeployment"
         self.parent.categories = ["Needle Interface"]
         self.parent.dependencies = []
-        self.parent.contributors = [
-            "Janine Hoelscher"
-        ]
+        self.parent.contributors = ["Janine Hoelscher"]
         self.parent.helpText = """
 This is an example of scripted loadable module bundled in an extension.
 It performs a simple thresholding on the input volume and optionally captures a screenshot.
@@ -76,6 +73,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.coloredAngleModel = None
         self.coloredRegion = []
         self.coloredRegionRadius = None
+        self.colorTableLegends = {}
         self.insertionPose = []
         self.insertionPoseLength = None
         self.startTime = None
@@ -95,14 +93,18 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         # hardcoded values for recorded data
         self.needle_registration = np.eye(4)
-        self.needle_registration = np.array([[0,-1,0,233.0],
-                                            [-1,0,0,160.0],
-                                            [0,0,-1,50.0],
-                                            [0,0,0,1]])
+        # self.needle_registration = np.array([[0,-1,0,233.0],
+        #                                     [-1,0,0,160.0],
+        #                                     [0,0,-1,50.0],
+        #                                     [0,0,0,1]])
+        self.needle_registration = np.array(
+            [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+        )
         self.stream_live_data = False
 
     def initUI(self):
         # load environment visualization elements
+        self.eventsDisabled = True
         self.userSwitched = False
         self.viewSelected = False
         self.viewSelectedLayout = layouts.VIEW_MAP[""]
@@ -146,6 +148,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
                 "recording3.txt",
                 "recording4.txt",
                 "recording5.txt",
+                "recording6.txt",
+                "recording7.txt",
             ]
         )
         for index in range(self.dropDownMovement.model().rowCount()):
@@ -279,9 +283,12 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.spaceBarPress = qt.QShortcut(
             qt.QKeySequence("Space"), slicer.util.mainWindow()
         )
-        self.spaceBarPress.connect("activated()", self.eventChange)
+        if not self.eventsDisabled:
+            self.spaceBarPress.connect("activated()", self.eventChange)
+        else:
+            self.spaceBarPress.connect("activated()", lambda: print("Events Disabled"))
 
-        slicer.util.mainWindow().setWindowTitle("Needle Interface")
+        slicer.util.mainWindow().setWindowTitle("Needle Deployment")
 
         # obtain 3d controllers for each view (necessary to decide which views to simulate "center view" button press in slicer)
         for n in range(5):
@@ -316,7 +323,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
                 self.View5Controller = (
                     slicer.app.layoutManager().threeDWidget(n).threeDController()
                 )
-                print(f": n={n}")
+                print(f"5: n={n}")
 
     # method called when spacebar pressed
     def eventChange(self):
@@ -339,7 +346,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # learning phase, align needle tip to position
         if self.eventCount == 0:
             self.eventCount = 4
-            self.startText.SetDisplayVisibility(False)
+            # self.startText.SetDisplayVisibility(False)
             self.dropDownViewSelector.setCurrentIndex(8)
             self.orderSelect.setText("1245")
             self.onOrderSelectEnter()
@@ -629,7 +636,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             return False
         current = self.getTransformRot(pos, self.quaternionToRotationMatrix(quat))
         T = np.matmul(self.needle_registration, current)
-        print(T)
+        # print(T)
         if self.startTime is not None:
             timePassed = time.time() - self.startTime
             with open(self.inputFolder + "needle-timestamps.txt", "a") as file:
@@ -765,8 +772,9 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         self.createNeedlePlan()
         self.createCompositeNeedle()
-        self.createTissue()
-        self.createCloth()
+        self.createPlanTracking()
+        # self.createTissue()
+        # self.createCloth()
         self.createColorRegionLegend()
         self.createColorAngleLegend()
 
@@ -780,50 +788,168 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         self.setCameras()
 
-        self.tissue[1].VisibilityOff()
+        # self.tissue[1].VisibilityOff()
 
         self.createSegmentations()
-        self.createStartText()
+        # self.createStartText()
 
-        self.dropDownViewSelector.setCurrentIndex(1)
-        self.orderSelect.setText("1")
+        self.composite_needle.AddObserver(
+            self.composite_needle.TransformModifiedEvent, self.onNeedleMove
+        )
+
+        self.dropDownViewSelector.setCurrentIndex(3)
+        self.orderSelect.setText("12")
         self.onOrderSelectEnter()
 
+    # Update plan objects dependent on needle movement
+    def onNeedleMove(self, caller, event):
+        needle_pos = self.getTransformMat(caller.GetName())
+        needle_direction = needle_pos[:3, 2]
+        needle_pos = needle_pos[:3, 3]
+        distance, index = self.ckdtree.query(needle_pos)
+        radius = self.funnel_radii[index]
+        transform = self.plan_transforms[index]
+
+        self.updateAllowedAngle(index, transform, distance, radius, needle_direction)
+        self.updateAllowedPos(index, transform, distance, radius)
+
+    # Set color for plan line, angle accuracy color legend
+    def updateAllowedAngle(self, index, transform, distance, radius, needle_direction):
+        plan_direction = self.plan_directions[index]
+
+        cos_theta = np.dot(plan_direction, needle_direction) / (
+            np.linalg.norm(plan_direction) * np.linalg.norm(needle_direction)
+        )
+
+        cos_theta = np.clip(cos_theta, -1, 1)
+        theta = np.arccos(cos_theta)
+
+        # angle_difference = np.degrees(theta)
+        angle_difference = theta
+
+        if angle_difference > self.max_angle[index]:
+            colorPos = 0
+            color = [1, 0, 0]
+            precision = 0
+        else:
+            precision = 1 - angle_difference / self.max_angle[index]
+            colorPos = int(precision * layouts.map_size)
+            color = layouts.colorMap(colorPos)[0]
+            precision = round(precision * 100)
+
+        self.plan_display_node.SetColor(color)
+        self.updateLegendColor("AllowedAngleLegend", color, colorPos, precision)
+
+    # Set color, position and model for allowed position region
+    def updateAllowedPos(self, index, transform, distance, radius):
+        self.allowed_pos[0].SetPolyDataConnection(self.models[index].GetOutputPort())
+        self.allowed_pos[2].SetMatrixTransformToParent(transform)
+        if distance > radius:
+            color = [1, 0, 0]
+            colorPos = 0
+            precision = 0
+        else:
+            precision = 1 - distance / radius
+            colorPos = int(precision * layouts.map_size)
+            color = layouts.colorMap(colorPos)[0]
+            precision = round(precision * 100)
+
+        self.allowed_pos[1].SetColor(color)
+        self.updateLegendColor("AllowedPosLegend", color, colorPos, precision)
+
+    # Create object for allowed position
+    def createAllowedPos(self):
+
+        transform = self.vtkToNpMatrix(self.plan_transforms[0])
+
+        color = [0, 0, 1]
+        opacity = 0.5
+        model = self.makeCylinder(0.3, self.funnel_radii[0])
+
+        self.allowed_pos = self.initModel(
+            model, transform, "AllowedPosition", color, opacity
+        )
+
+    # Creates objects which respond to needle position changes wrt plan
+    def createPlanTracking(self):
+
+        self.createColorLegend("AllowedPosLegend", "", 0.85)
+        self.createColorLegend("AllowedAngleLegend", "", 0.98)
+
+        # vtk models for allowed positions at each point using radius
+        self.models = []
+        for radius in self.funnel_radii:
+            model = self.makeCylinder(0.3, radius)
+            self.models.append(model)
+        print(len(self.models))
+
+        self.createAllowedPos()
 
     # loads needle deployment data and creates plan and funnel shapes
     def createNeedlePlan(self):
         path = self.inputFolder + "needle_deployment.txt"
         data = np.array(self.loadDataFromFile(path, 1))
 
-        #organize data
-        #needle plan 
-        plan_positions = data[:, 7:10]
+        # organize data
+
+        # needle plan
+        self.plan_positions = data[:, 7:10]
+
+        # ckdtree for nearest neighbor search
+        self.ckdtree = cKDTree(self.plan_positions)
         plan_quaternions = data[:, 10:14]
 
-        #actual trajectory
+        # create collection of matrices with full plan transforms
+        plan_transforms = []
+        for quat in plan_quaternions:
+            plan_transforms.append(self.quaternionToRotationMatrix(quat))
+
+        plan_transforms = np.array(plan_transforms)
+        self.plan_directions = plan_transforms[:, :, 2]
+
+        plan_transforms = np.matmul(plan_transforms, self.rotateAroundX(np.radians(90)))
+        plan_transforms = np.round(plan_transforms, 2)
+
+        plan_transforms = np.concatenate(
+            (plan_transforms, self.plan_positions.reshape(-1, 3, 1)), axis=2
+        )
+        self.plan_transforms = []
+
+        for transform in plan_transforms:
+            self.plan_transforms.append(self.npToVtkMatrix(transform))
+
+        # actual trajectory
         trajectory_positions = data[:, 0:3]
         trajectory_quaternions = data[:, 3:7]
 
-        #position deviation: distance to original plan, maximum allowable distance
-        position_dev = data[:,14:16]
+        # position deviation: distance to original plan, maximum allowable distance
+        position_dev = data[:, 14:16]
 
+        # funnel radii
+        self.funnel_radii = data[:, 15]
 
-        #orientation deviation: angle between simulated trajectory orientation and original plan, maximum allowable angle
+        # orientation deviation: angle between simulated trajectory orientation and original plan, maximum allowable angle
         orientation_dev = data[:, 16:18]
+        self.max_angle = orientation_dev[:, 1]
 
-        #create Line structures for the plan and the surrounding funnel
+        # create Line structures for the plan and the surrounding funnel
         num_points = data.shape[0]
-        plan_radii = np.full((num_points, 1), 0.5)
-        [plan_node, plan_display_node] = self.createLine(plan_positions, plan_radii, [0, 0, 1], 1.0, "needle-plan") 
-        [funnel_node, funnel_display_node] = self.createLine(plan_positions, position_dev[:,1], [0, 0, 1], 0.4, "needle-funnel") 
+        plan_radii = np.full((num_points, 1), 0.3)
+        [plan_node, self.plan_display_node] = self.createLine(
+            self.plan_positions, plan_radii, [0, 0, 1], 0.4, "needle-plan"
+        )
+        [funnel_node, funnel_display_node] = self.createLine(
+            self.plan_positions, position_dev[:, 1], [0, 0, 1], 0.4, "needle-funnel"
+        )
 
-        #create a target fiducial
-        self.createFiducial(plan_positions[-1,:])
+        # plan line lighting
+        self.plan_display_node.SetAmbient(1)
+        self.plan_display_node.SetDiffuse(0.65)
 
-        
+        # create a target fiducial
+        self.createFiducial(self.plan_positions[-1, :])
 
-
-    def createLine(self, points, radii, color = [0, 0, 1], plan_opacity = 0.5, name=" "):
+    def createLine(self, points, radii, color=[0, 0, 1], plan_opacity=0.5, name=" "):
         plan = vtk.vtkPolyData()
         pts = vtk.vtkPoints()
         npoints = len(points)
@@ -838,21 +964,23 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         plan.SetLines(polyline)
 
         radius_array = vtk.vtkDoubleArray()
-        radius_array.SetName('radius')
+        radius_array.SetName("radius")
         radius_array.SetNumberOfValues(npoints)
         # radius may have negative values so we just offset using the minimum value
-        radii_offset =  0.05
+        radii_offset = 0.05
         for i in range(npoints):
             radius_array.SetValue(i, radii[i] + radii_offset)
         plan.GetPointData().AddArray(radius_array)
 
         plan_filter = vtk.vtkTubeFilter()
         plan_filter.SetInputData(plan)
-        plan_filter.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, 'radius')
+        plan_filter.SetInputArrayToProcess(
+            0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "radius"
+        )
         plan_filter.SetNumberOfSides(25)
         plan_filter.SidesShareVerticesOn()
         plan_filter.SetVaryRadiusToVaryRadiusByAbsoluteScalar()
-        plan_filter.CappingOn()
+        plan_filter.CappingOff()
         plan_filter.Update()
 
         plan_node = slicer.vtkMRMLModelNode()
@@ -867,20 +995,15 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         plan_node.SetAndObserveDisplayNodeID(plan_display_node.GetID())
         slicer.mrmlScene.AddNode(plan_node)
 
-
         return plan_node, plan_display_node
 
     def createFiducial(self, point, name=" "):
-        
-        
+
         fiducial_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
         fiducial_node.SetName("Target")
         fiducial_node.GetDisplayNode().SetSelectedColor([1, 0, 1])
         fiducial_node.SetDisplayVisibility(True)
         fiducial_node.AddControlPoint(point[0], point[1], point[2], name)
-
-
-        
 
     # creates cloth associated nodes
     def createCloth(self):
@@ -910,7 +1033,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         nodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode")
 
         for node in nodes:
-            node.SetDisplayVisibility(False)
+            if not self.eventsDisabled:
+                node.SetDisplayVisibility(False)
             node.SetAndObserveTransformNodeID(self.segTransform.GetID())
 
         # transform = np.array(
@@ -921,39 +1045,42 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         #         [0, 0, 0, 1],
         #     ]
         # )
-        transform = np.eye(4)
+        # transform = np.eye(4)
         self.segTransform.SetMatrixTransformToParent(self.npToVtkMatrix(transform))
 
     # trigger experiment phase
     def phaseTwo(self):
-        self.tissue[1].VisibilityOn()
-        self.clothDisplay.SetVisibility(True)
+        # self.tissue[1].VisibilityOn()
+        # self.clothDisplay.SetVisibility(True)
         nodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode")
         for node in nodes:
             node.SetDisplayVisibility(True)
 
-    #render views, setup cameras 1,2,4,5 
+    # render views, setup cameras 1,2,4,5
     def setCameras(self):
         self.resetFocals()
 
-        #cameras are associated with their respective views. e.g, View1 -> Camera, View2 -> Camera_1, etc
+        # cameras are associated with their respective views. e.g, View1 -> Camera, View2 -> Camera_1, etc
 
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
         camera.SetPosition(0, 0, 0)
-        camera.SetViewUp(0, 0, 1)
-        camera.SetFocalPoint(0, 0, 0)
-        camera.SetPosition([222.5576399470194, -185.12465478378599, 266.6817368815024])
-        camera.SetViewUp(
-            [-0.0025715218187866242, 0.2989896106755466, 0.9542529014803259]
-        )
+        camera.SetViewUp([0.008172250468107965, 0.15448236681251978, 0.987961746560204])
+        camera.SetFocalPoint([151.7727289596655, -39.799073622705414, -147.57102173244746])
+        camera_focal = camera.GetFocalPoint()
+        camera_viewup = camera.GetViewUp()
+        # camera.SetPosition([222.5576399470194, -185.12465478378599, 266.6817368815024])
+        # camera.SetPosition([153.286, -633.679, -54.2941])
+        camera.SetPosition([109.43928418144009, -265.2057189369665, -111.97519861503923])
+
+        camera.SetViewUp([-0.00057625, 0.205052, 0.978751])
 
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
         camera_2.SetPosition(0, 0, 0)
         camera_2.SetViewUp(0, 0, 1)
         camera_2.SetFocalPoint(0, 0, 0)
 
-        #make composite needle handle invisible in view 3
-        #change needle shaft model in view 2 (uses different lighting settings)
+        # make composite needle handle invisible in view 3
+        # change needle shaft model in view 2 (uses different lighting settings)
         handle_views = []
         shaft_views = []
         for view in slicer.mrmlScene.GetNodesByClass("vtkMRMLViewNode"):
@@ -973,7 +1100,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             if not view.GetName() == "View2":
                 shaft_views.append(view.GetID())
 
-        #models only visible in specified views in lists
+        # models only visible in specified views in lists
         self.compositeNeedleHandle[1].SetViewNodeIDs(handle_views)
         self.compositeNeedleShaft[1].SetViewNodeIDs(shaft_views)
 
@@ -989,28 +1116,34 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         camera_5.SetViewUp(0, 1, 0)
         camera_5.SetFocalPoint(0, 0, 0)
 
-        #Need to move composite needle object before ego view tracking is updated
-        camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
+        # set ego view
+
         initial_position = np.eye(4)
-        initial_position[:3, 3] = [225.0, 150.0, 175.0]
+        initial_position[:3, 3] = self.plan_positions[0, :]
+
+        camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
+
+        # initial_position[:3, 3] = [225, 150, 175]
         self.composite_needle.SetMatrixTransformToParent(
             self.npToVtkMatrix(initial_position)
         )
 
-        camera_2.SetPosition(224.975, 150.8, 149.38)
-        camera_2.SetViewUp(
-            0.004463893312410369, 0.9978291656684652, -0.06570410792233823
-        )
+        camera_2.SetPosition(182.25036294784056, -62.8664316131424, -201.92664210949783)
+        camera_2.SetViewUp(0.9979496069888548, -0.016440270534469646, 0.06185708864425579)
 
         camera_2_focal = camera_2.GetFocalPoint()
+        camera_2_viewup = camera_2.GetViewUp()
 
         # render views
         self.resetFocals()
 
+        camera.SetFocalPoint(camera_focal)
+        camera.SetViewUp(camera_viewup)
         camera_2.SetFocalPoint(camera_2_focal)
+        camera_2.SetViewUp(camera_2_viewup)
 
-        #save camera positions/focals/viewup vectors
-        #using resetFocals() renders views, but can change camera setups
+        # save camera positions/focals/viewup vectors
+        # using resetFocals() renders views, but can change camera setups
         self.camera = [camera.GetPosition(), camera.GetViewUp(), camera.GetFocalPoint()]
         self.camera_2 = [
             camera_2.GetPosition(),
@@ -1028,7 +1161,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             camera_5.GetFocalPoint(),
         ]
 
-    #restore cameras to previous values after a view render
+    # restore cameras to previous values after a view render
     def resetCameras(self):
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
@@ -1058,15 +1191,15 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         camera_5.SetViewUp(self.camera_5[1])
         camera_5.SetFocalPoint(self.camera_5[2])
 
-    #render views
+    # render views
     def resetFocals(self):
         for n in range(5):
             slicer.app.layoutManager().threeDWidget(
                 n
             ).threeDController().resetFocalPoint()
 
-    #Need to set camera 3 up separately from others, since position is dynamic and attached to changing start poses
-    #Start poses not present in first part (matching needle tip to position)
+    # Need to set camera 3 up separately from others, since position is dynamic and attached to changing start poses
+    # Start poses not present in first part (matching needle tip to position)
     def setCamera3(self):
         self.View3Controller.resetFocalPoint()
         camera_3 = slicer.mrmlScene.GetFirstNodeByName("Camera_2")
@@ -1115,7 +1248,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         )
 
         transform = np.eye(4)
-        #setup transform cleanup for unused transforms
+        # setup transform cleanup for unused transforms
         cleanup_transforms = []
 
         self.compositeNeedleTip = self.initModel(
@@ -1130,6 +1263,9 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.compositeNeedleHandle = self.initModel(
             compositeNeedleHandle, transform, "CompositeNeedleHandle", black, opacity
         )
+
+        #disable temporarily
+        self.compositeNeedleHandle[1].SetVisibility(False)
 
         cleanup_transforms.append(self.compositeNeedleTip[2])
         cleanup_transforms.append(self.compositeNeedleShaft[2])
@@ -1147,7 +1283,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             "CompositeNeedle",
         )
 
-        #ego shaft lighting changes
+        # ego shaft lighting changes
         self.compositeNeedleEgoShaft[1].SetAmbient(0.73)
         self.compositeNeedleEgoShaft[1].SetDiffuse(0.91)
         self.compositeNeedleEgoShaft[1].SetSpecular(1)
@@ -1356,7 +1492,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             self.coloredAngleModel, transform, "InsertionAngle", color, opacity
         )
 
-    #creates markup representing steerable needle motion planning (currently unused)
+    # creates markup representing steerable needle motion planning (currently unused)
     def createPlan(self):
         plan_data = self.loadDataFromFile(
             self.inputFolder + "plan.txt", ignoreFirstLines=1
@@ -1484,7 +1620,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         return model
 
     def initCompositeModel(self, models, transform, name):
-        composite_transform = slicer.vtkMRMLLinearTransformNode()
+        composite_transform = slicer.vtkMRMLTransformNode()
         composite_transform.SetMatrixTransformToParent(self.npToVtkMatrix(transform))
         composite_transform.SetName(name + "Transform")
         slicer.mrmlScene.AddNode(composite_transform)
@@ -1722,7 +1858,79 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             self.colorTableAnglePrev = color
             self.colorTableAngle.SetColor(colorPos, 0, 0, 0, 1)
 
+    def updateLegendColor(self, name, color, colorPos, precision):
+        if (
+            self.colorTableLegends[f"{name}Index"] is not None
+            and self.colorTableLegends[f"{name}Index"] != colorPos
+        ):
+            prev = self.colorTableLegends[f"{name}Prev"]
+            self.colorTableLegends[f"{name}"].SetColor(
+                self.colorTableLegends[f"{name}Index"], prev[0], prev[1], prev[2], 1
+            )
+
+        if self.colorTableLegends[f"{name}Index"] != colorPos:
+            self.colorTableLegends[f"{name}Index"] = colorPos
+            self.colorTableLegends[f"{name}Prev"] = color
+            self.colorTableLegends[f"{name}"].SetColor(colorPos, 0, 0, 0, 1)
+
+        self.colorTableLegends[f"{name}ColorDisplayNode"].SetTitleText(f"{precision}%")
+
     # create color bars to display color map
+    def createColorLegend(self, name, title, pos):
+
+        self.colorTableLegends[f"{name}"] = slicer.vtkMRMLColorTableNode()
+        self.colorTableLegends[f"{name}"].SetTypeToUser()
+        self.colorTableLegends[f"{name}"].SetNumberOfColors(layouts.colorMap(0)[1])
+        self.colorTableLegends[f"{name}Index"] = None
+        self.colorTableLegends[f"{name}Prev"] = None
+
+        for n in range(layouts.colorMap(0)[1]):
+            color = layouts.colorMap(n)[0]
+            self.colorTableLegends[f"{name}"].SetColor(
+                n, color[0], color[1], color[2], 1
+            )
+
+        slicer.mrmlScene.AddNode(self.colorTableLegends[f"{name}"])
+
+        # initialize dummy model
+        sphere = vtk.vtkSphereSource()
+        sphere.SetCenter(0, 0, 0)
+        sphere.SetRadius(1)
+        legendModel = slicer.vtkMRMLModelNode()
+        legendModel.SetPolyDataConnection(sphere.GetOutputPort())
+        legendModel.SetName(f"{name}Model")
+        slicer.mrmlScene.AddNode(legendModel)
+
+        displayLegend = slicer.vtkMRMLModelDisplayNode()
+        displayLegend.SetName(f"{name}ModelDisplay")
+        displayLegend.SetActiveScalarName("Normals")
+        displayLegend.SetScalarRange(0, 100)
+        displayLegend.SetScalarRangeFlag(0)
+        # displayLegend.SetVisibility(False)
+        displayLegend.SetAndObserveColorNodeID(
+            self.colorTableLegends[f"{name}"].GetID()
+        )
+        slicer.mrmlScene.AddNode(displayLegend)
+        legendModel.SetAndObserveDisplayNodeID(displayLegend.GetID())
+
+        displayLegendNode = slicer.vtkMRMLColorLegendDisplayNode()
+        displayLegendNode.SetName(f"Color{name}")
+        slicer.mrmlScene.AddNode(displayLegendNode)
+        displayLegendNode.SetAndObservePrimaryDisplayNode(displayLegend)
+        legendModel.AddAndObserveDisplayNodeID(displayLegendNode.GetID())
+
+        displayLegendNode.SetNumberOfLabels(0)
+        displayLegendNode.SetMaxNumberOfColors(100)
+        displayLegendNode.SetSize(0.1, 0.85)
+        displayLegendNode.SetPosition(pos, 0.4)
+        displayLegendNode.SetTitleText(f"{title}")
+        displayLegendNode.GetTitleTextProperty().SetFontSize(20)
+        displayLegendNode.GetTitleTextProperty().SetBold(True)
+        displayLegendNode.GetLabelTextProperty().SetFontFamilyToArial()
+
+        self.colorTableLegends[f"{name}ColorDisplayNode"] = displayLegendNode
+
+    # TODO: merge into above function
     def createColorRegionLegend(self):
         self.colorTableRegion = slicer.vtkMRMLColorTableNode()
         self.colorTableRegion.SetTypeToUser()
@@ -1769,6 +1977,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         displayLegendNode.GetTitleTextProperty().SetFontSize(20)
         displayLegendNode.GetLabelTextProperty().SetFontFamilyToArial()
 
+    # TODO: merge into createColorLegend
     def createColorAngleLegend(self):
         self.colorTableAngle = slicer.vtkMRMLColorTableNode()
         self.colorTableAngle.SetTypeToUser()
@@ -1782,7 +1991,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         slicer.mrmlScene.AddNode(self.colorTableAngle)
 
-        #initialize dummy node 
+        # initialize dummy node
         sphere = vtk.vtkSphereSource()
         sphere.SetCenter(0, 0, 0)
         sphere.SetRadius(1)
@@ -1851,6 +2060,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 #
 # NeedleDeploymentLogic
 #
+
 
 class NeedleDeploymentLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
