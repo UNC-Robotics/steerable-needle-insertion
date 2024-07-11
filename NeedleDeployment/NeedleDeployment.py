@@ -810,11 +810,20 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         radius = self.funnel_radii[index]
         transform = self.plan_transforms[index]
 
-        self.updateAllowedAngle(index, transform, distance, radius, needle_direction)
-        self.updateAllowedPos(index, transform, distance, radius)
+        self.updateAllowedAngle(index, transform, needle_pos, needle_direction)
 
-    # Set color for plan line, angle accuracy color legend
-    def updateAllowedAngle(self, index, transform, distance, radius, needle_direction):
+        if self.deviationCircle:
+            self.updateAllowedPos(index, transform, distance, radius)
+        else:
+            self.updateAllowedPosDevLine(index, transform, needle_pos, distance, radius)
+
+    # Set color for cone, angle accuracy color legend
+    def updateAllowedAngle(self, index, plan_transform, needle_pos, needle_direction):
+
+        use_plan_orientation = True
+        cone_height = 20
+        
+        #find color
         plan_direction = self.plan_directions[index]
 
         cos_theta = np.dot(plan_direction, needle_direction) / (
@@ -836,11 +845,40 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             colorPos = int(precision * layouts.map_size)
             color = layouts.colorMap(colorPos)[0]
             precision = round(precision * 100)
+        
+        #update cone object
+        model = self.makeCone(cone_height, np.degrees(self.max_angle[index]), 10)
 
-        self.plan_display_node.SetColor(color)
+        self.allowed_angle[0].SetPolyDataConnection(model.GetOutputPort())
+
+        transform = self.getTransformMat(self.composite_needle.GetName())
+
+        # update transform with cone orientation when data available
+        if use_plan_orientation:
+            transform = self.vtkToNpMatrix(plan_transform)
+            transform[:3,3] = needle_pos
+
+        transform = self.npToVtkMatrix(transform)
+
+        self.allowed_angle[2].SetMatrixTransformToParent(transform)
+        self.allowed_angle[1].SetColor(color)
         self.updateLegendColor("AllowedAngleLegend", color, colorPos, precision)
 
+    def createAllowedAngle(self):
+
+        transform = self.getTransformMat(self.composite_needle.GetName())
+
+        color = [1, 0, 0]
+        opacity = 0.3
+        angle = np.degrees(self.max_angle[0])
+        model = self.makeCone(10, angle, 10)
+
+        self.allowed_angle = self.initModel(
+            model, transform, "AllowedAngle", color, opacity
+        )
+
     # Set color, position and model for allowed position region
+
     def updateAllowedPos(self, index, transform, distance, radius):
         self.allowed_pos[0].SetPolyDataConnection(self.models[index].GetOutputPort())
         self.allowed_pos[2].SetMatrixTransformToParent(transform)
@@ -870,6 +908,61 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             model, transform, "AllowedPosition", color, opacity
         )
 
+    def updateAllowedPosDevLine(self, index, transform, needle_pos, distance, radius):
+
+        p1 = self.plan_positions[index]
+        p2 = needle_pos
+
+        # find angle between deviation line and plan direction to toggle line visibility
+        line_vector = p2 - p1
+        plan_vector = self.plan_directions[index]
+        dot = np.dot(line_vector, plan_vector)
+        mag_product = np.linalg.norm(line_vector) * (np.linalg.norm(plan_vector))
+
+        if mag_product != 0:
+            angle = np.degrees(
+                np.arccos(
+                    dot / (np.linalg.norm(line_vector) * (np.linalg.norm(plan_vector)))
+                )
+            )
+        else:
+            angle = 90
+
+        # threshold for line visibility
+        if 85 < angle < 95:
+            visible = True
+        else:
+            visible = False
+
+        self.allowedPosDevLine[1].SetVisibility(visible)
+
+        if distance > radius:
+            color = [1, 0, 0]
+            colorPos = 0
+            precision = 0
+            visible = False
+        else:
+            precision = 1 - distance / radius
+            colorPos = int(precision * layouts.map_size)
+            color = layouts.colorMap(colorPos)[0]
+            precision = round(precision * 100)
+
+        model = self.makeConnectingLine(p1, p2, 0.2)
+
+        self.allowedPosDevLine[0].SetPolyDataConnection(model.GetOutputPort())
+        self.allowedPosDevLine[1].SetColor(color)
+
+        self.updateLegendColor("AllowedPosLegend", color, colorPos, precision)
+
+    def createAllowedPosDevLine(self):
+        model = self.makeConnectingLine([0, 0, 0], [0, 0, 0], 0.2)
+        transform = np.eye(4)
+        color = [1, 0, 0]
+
+        self.allowedPosDevLine = self.initModel(
+            model, transform, "AllowedPosition", color, 0.5
+        )
+
     # Creates objects which respond to needle position changes wrt plan
     def createPlanTracking(self):
 
@@ -883,7 +976,14 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             self.models.append(model)
         print(len(self.models))
 
-        self.createAllowedPos()
+        self.deviationCircle = False
+
+        if self.deviationCircle:
+            self.createAllowedPos()
+        else:
+            self.createAllowedPosDevLine()
+
+        self.createAllowedAngle()
 
     # loads needle deployment data and creates plan and funnel shapes
     def createNeedlePlan(self):
@@ -908,7 +1008,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.plan_directions = plan_transforms[:, :, 2]
 
         # rotate transforms to align with allowable position axes
-        plan_transforms = np.matmul(plan_transforms, self.rotateAroundX(np.radians(90)))
+        # plan_transforms = np.matmul(plan_transforms, self.rotateAroundX(np.radians(90)))
         plan_transforms = np.round(plan_transforms, 2)
 
         plan_transforms = np.concatenate(
@@ -940,7 +1040,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             self.plan_positions, plan_radii, [0, 0, 1], 0.4, "needle-plan"
         )
         [funnel_node, funnel_display_node] = self.createLine(
-            self.plan_positions, position_dev[:, 1], [0, 0, 1], 0.4, "needle-funnel"
+            self.plan_positions, position_dev[:, 1], [0, 0, 1], 0.2, "needle-funnel"
         )
 
         # plan line lighting
@@ -1066,12 +1166,16 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
         camera.SetPosition(0, 0, 0)
         camera.SetViewUp([0.008172250468107965, 0.15448236681251978, 0.987961746560204])
-        camera.SetFocalPoint([151.7727289596655, -39.799073622705414, -147.57102173244746])
+        camera.SetFocalPoint(
+            [151.7727289596655, -39.799073622705414, -147.57102173244746]
+        )
         camera_focal = camera.GetFocalPoint()
         camera_viewup = camera.GetViewUp()
         # camera.SetPosition([222.5576399470194, -185.12465478378599, 266.6817368815024])
         # camera.SetPosition([153.286, -633.679, -54.2941])
-        camera.SetPosition([109.43928418144009, -265.2057189369665, -111.97519861503923])
+        camera.SetPosition(
+            [109.43928418144009, -265.2057189369665, -111.97519861503923]
+        )
 
         camera.SetViewUp([-0.00057625, 0.205052, 0.978751])
 
@@ -1130,7 +1234,9 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         )
 
         camera_2.SetPosition(182.25036294784056, -62.8664316131424, -201.92664210949783)
-        camera_2.SetViewUp(0.9979496069888548, -0.016440270534469646, 0.06185708864425579)
+        camera_2.SetViewUp(
+            0.9979496069888548, -0.016440270534469646, 0.06185708864425579
+        )
 
         camera_2_focal = camera_2.GetFocalPoint()
         camera_2_viewup = camera_2.GetViewUp()
@@ -1235,8 +1341,10 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         tipLength = 5 / 2
         tipAngle = 15 / 2
-        shaftLength = 70 / 2
-        handleLength = 40 / 2
+
+        #overall needle length
+        shaftLength = 70 / 4
+        handleLength = 40 / 4
 
         compositeNeedleTip = self.makeTip(tipLength, tipAngle, 3)
         radius = compositeNeedleTip.GetRadius()
@@ -1265,7 +1373,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             compositeNeedleHandle, transform, "CompositeNeedleHandle", black, opacity
         )
 
-        #disable temporarily
+        # disable temporarily
         self.compositeNeedleHandle[1].SetVisibility(False)
 
         cleanup_transforms.append(self.compositeNeedleTip[2])
@@ -1572,8 +1680,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         radius = np.tan(np.radians(angle)) * height
         coneModel.SetHeight(height)
         coneModel.SetRadius(radius)
-        coneModel.SetDirection(0, 0, -1)
-        coneModel.SetCenter(0, 0, height / 2)
+        coneModel.SetDirection(0, 0, 1)
+        coneModel.SetCenter(0, 0, -height/2)
         coneModel.SetResolution(coneModel.GetResolution() * resolution * 2)
         coneModel.CappingOff()
         coneModel.Update()
@@ -1596,6 +1704,21 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         lineModel.SetPoint1(point)
         point[2] += height * direction
         lineModel.SetPoint2(point)
+        lineModel.Update()
+
+        tubeFilter = vtk.vtkTubeFilter()
+        tubeFilter.SetInputConnection(lineModel.GetOutputPort())
+        tubeFilter.SetRadius(radius)
+        tubeFilter.SetNumberOfSides(30)
+        tubeFilter.Update()
+        return tubeFilter
+
+    def makeConnectingLine(
+        self, point1: list[float], point2: list[float], radius, direction=1
+    ):
+        lineModel = vtk.vtkLineSource()
+        lineModel.SetPoint1(point1)
+        lineModel.SetPoint2(point2)
         lineModel.Update()
 
         tubeFilter = vtk.vtkTubeFilter()
@@ -1896,7 +2019,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # initialize dummy model
         sphere = vtk.vtkSphereSource()
         sphere.SetCenter(0, 0, 0)
-        sphere.SetRadius(1)
+        sphere.SetRadius(0)
         legendModel = slicer.vtkMRMLModelNode()
         legendModel.SetPolyDataConnection(sphere.GetOutputPort())
         legendModel.SetName(f"{name}Model")
@@ -1948,7 +2071,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # initialize dummy model
         sphere = vtk.vtkSphereSource()
         sphere.SetCenter(0, 0, 0)
-        sphere.SetRadius(1)
+        sphere.SetRadius(0)
         legendModel = slicer.vtkMRMLModelNode()
         legendModel.SetPolyDataConnection(sphere.GetOutputPort())
         legendModel.SetName("RegionLegendModel")
@@ -1995,7 +2118,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # initialize dummy node
         sphere = vtk.vtkSphereSource()
         sphere.SetCenter(0, 0, 0)
-        sphere.SetRadius(1)
+        sphere.SetRadius(0)
         legendModel = slicer.vtkMRMLModelNode()
         legendModel.SetPolyDataConnection(sphere.GetOutputPort())
         legendModel.SetName("AngleLegendModel")

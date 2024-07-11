@@ -130,7 +130,7 @@ class LoadSegmentationsWidget(ScriptedLoadableModuleWidget):
         return
 
     success = True
-    segmentations=["Ribs", "Vessels", "LiverTissue"]
+    segmentations=["Ribs", "Vessels", "LiverTissue", "Skin"]
     colors=[[244.0/255,170.0/255,147.0/255], \
             [1, 0, 0], [0.85, 0.8, 0.8], \
             [34.0/255,74.0/255,235.0/255], \
