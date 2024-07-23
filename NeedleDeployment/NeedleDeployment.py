@@ -847,7 +847,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             precision = round(precision * 100)
         
         #update cone object
-        model = self.makeCone(cone_height, np.degrees(self.max_angle[index]), 10)
+        model = self.makeCone(cone_height, np.degrees(self.max_angle[index]/2), 10)
 
         self.allowed_angle[0].SetPolyDataConnection(model.GetOutputPort())
 
@@ -1675,6 +1675,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         cylinderModel.Update()
         return cylinderModel
 
+        #angle: half of the total tip angle
     def makeCone(self, height, angle, resolution):
         coneModel = vtk.vtkConeSource()
         radius = np.tan(np.radians(angle)) * height
