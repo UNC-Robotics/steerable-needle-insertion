@@ -801,6 +801,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         self.orderSelect.setText("12")
         self.onOrderSelectEnter()
 
+        self.modifyFunnel()
+
     # Update plan objects dependent on needle movement
     def onNeedleMove(self, caller, event):
         needle_pos = self.getTransformMat(caller.GetName())
@@ -821,7 +823,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
     def updateAllowedAngle(self, index, plan_transform, needle_pos, needle_direction):
 
         use_plan_orientation = True
-        cone_height = 20
+        cone_height = 20 #sets length of the cone
         
         #find color
         plan_direction = self.plan_directions[index]
@@ -1117,6 +1119,38 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         ).GetDisplayNode()
         self.clothDisplay.SetColor(color)
         self.clothDisplay.SetVisibility(False)
+    
+    def modifyFunnel(self):
+
+        funnel = slicer.mrmlScene.GetFirstNodeByName('needle-funnel')
+        segNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+        segNode.CreateDefaultDisplayNodes()
+        segNode.SetName('funnel-segmentation')
+        
+        slicer.modules.segmentations.logic().ImportModelToSegmentationNode(funnel, segNode)
+        segNode.CreateClosedSurfaceRepresentation()
+
+        segEditor = slicer.modules.segmenteditor.widgetRepresentation().self().editor
+        segEditor.setSegmentationNode(segNode)
+        segEditor.setSourceVolumeNode(slicer.mrmlScene.GetFirstNodeByName('OutsideBody'))
+        newSegID = segNode.GetSegmentation().AddEmptySegment()
+
+        segEditor.setCurrentSegmentID(newSegID)
+        segEditor.setActiveEffectByName('Threshold')
+        segEditor.activeEffect().self().onApply()
+
+        segEditor.setActiveEffectByName('Logical operators')
+        segEditor.activeEffect().setParameter('Operation', 'SUBTRACT')
+        segEditor.activeEffect().setParameter('ModifierSegmentID', 'Segment_1')
+        segEditor.activeEffect().self().onApply()
+
+        slicer.mrmlScene.GetFirstNodeByName("needle-funnel").GetDisplayNode().SetVisibility(False)
+        slicer.mrmlScene.GetFirstNodeByName("Segmentation_4").SetDisplayVisibility(False)
+
+
+
+
+
 
     # hooks into LoadSegmentations module to load segmentation models
     def createSegmentations(self):
@@ -1137,6 +1171,9 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             if not self.eventsDisabled:
                 node.SetDisplayVisibility(False)
             node.SetAndObserveTransformNodeID(self.segTransform.GetID())
+        
+        # Make outside skin invisible
+        # slicer.mrmlScene.GetFirstNodeByName("Segmentation_4").SetDisplayVisibility(False)
 
         # transform = np.array(
         #     [
