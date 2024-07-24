@@ -820,7 +820,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
     # Set color for cone, angle accuracy color legend
     def updateAllowedAngle(self, index, plan_transform, needle_pos, needle_direction):
 
-        use_plan_orientation = True
+        use_plan_orientation = False
         cone_height = 20
         
         #find color
@@ -857,12 +857,24 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         if use_plan_orientation:
             transform = self.vtkToNpMatrix(plan_transform)
             transform[:3,3] = needle_pos
+        #compute cone orientation at actual needle position    
+        else:
+            transform = self.computeConeTransform(transform, self.cone_directions[index])
 
         transform = self.npToVtkMatrix(transform)
 
         self.allowed_angle[2].SetMatrixTransformToParent(transform)
         self.allowed_angle[1].SetColor(color)
         self.updateLegendColor("AllowedAngleLegend", color, colorPos, precision)
+
+    def computeConeTransform(self, plan_transform, cone_direction):
+        x_dir = plan_transform[0:3,0]
+        y_dir = np.cross(cone_direction, x_dir)
+        y_dir = np.expand_dims(y_dir/np.linalg.norm(y_dir),1)
+        cone_transform = plan_transform
+        cone_transform[0:3, 1:2] = y_dir
+        cone_transform[0:3, 2:3] = np.expand_dims(cone_direction,1)
+        return cone_transform
 
     def createAllowedAngle(self):
 
@@ -1033,6 +1045,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         orientation_dev = data[:, 16:18]
         self.max_angle = orientation_dev[:, 1]
 
+        self.cone_directions = data[:, 18:21]
+
         # create Line structures for the plan and the surrounding funnel
         num_points = data.shape[0]
         plan_radii = np.full((num_points, 1), 0.3)
@@ -1049,6 +1063,16 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         # create a target fiducial
         self.createFiducial(self.plan_positions[-1, :])
+
+
+        
+
+
+
+
+
+
+
 
     def createLine(self, points, radii, color=[0, 0, 1], plan_opacity=0.5, name=" "):
         plan = vtk.vtkPolyData()
