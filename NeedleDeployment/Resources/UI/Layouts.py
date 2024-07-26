@@ -516,4 +516,4 @@ def colorMap(n):
                          ])
     return color_map[n], color_map.shape[0]
 
-map_size = colorMap(0)[1] - 1
+map_size = colorMap(0)[1]
