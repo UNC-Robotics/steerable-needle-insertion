@@ -160,6 +160,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
                 "recording6.txt",
                 "recording7.txt",
                 "recording8.txt",
+                "demo.txt",
+                "demo_slow.txt",
             ]
         )
         for index in range(self.dropDownMovement.model().rowCount()):
@@ -758,8 +760,8 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
                 self.needle_pose_index = 0
 
             if self.needle_pose_index >= len(self.needle_data) - 1:  # last line reached
-                self.needle_pose_index = 0
                 self.onStartNeedleClicked()  # click 'stop' button
+                self.needle_pose_index = 0
 
             self.needle_pose_index += 1
 
@@ -1129,6 +1131,10 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         self.updateLegendColor("AllowedPosLegend", color, colorPos, precision)
 
+        # Update camera focal point to needle tip
+        # view up is normalized line vector
+        # 
+
     def createAllowedPosDevLine(self):
         model = self.makeConnectingLine([0, 0, 0], [0, 0, 0], 0.15)
         transform = np.eye(4)
@@ -1201,6 +1207,16 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         # needle plan
         self.plan_positions = data[:, 7:10]
+        self.interpolated_positions = []
+        prev = None
+        for pos in self.plan_positions:
+            if prev is not None:
+                interpolated = (pos + prev) / 2
+                self.interpolated_positions.append(interpolated)
+            self.interpolated_positions.append(pos)
+            prev = pos
+        self.interpolated_positions = np.array(self.interpolated_positions)
+
 
         # ckdtree for nearest neighbor search
         self.ckdtree = cKDTree(self.plan_positions)
@@ -1247,10 +1263,12 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             self.cone_transforms.append(self.computeConeTransform(direction))
 
         # create Line structures for the plan and the surrounding funnel
-        num_points = data.shape[0]
+        # num_points = data.shape[0]
+        num_points = self.interpolated_positions.shape[0]
+        print(f"{num_points=}")
         plan_radii = np.full((num_points, 1), 0.1)
         [plan_node, self.plan_display_node] = self.createLine(
-            self.plan_positions, plan_radii, [0, 0, 1], 0.4, "needle-plan"
+            self.interpolated_positions, plan_radii, [0, 0, 1], 0.4, "needle-plan"
         )
         [funnel_node, funnel_display_node] = self.createLine(
             self.plan_positions, position_dev[:, 1], [0, 0, 1], 0.2, "needle-funnel"
@@ -1356,6 +1374,10 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # Increase opacity for vessels from .5 default
         slicer.mrmlScene.GetFirstNodeByName("Segmentation_1").GetDisplayNode().SetOpacity3D(.7)
 
+        # Skin color and opacity
+        slicer.mrmlScene.GetFirstNodeByName("Segmentation_3").GetDisplayNode().SetSegmentOverrideColor('Skin', 249/255, 203/255, 156/255)
+        slicer.mrmlScene.GetFirstNodeByName("Segmentation_3").GetDisplayNode().SetOpacity3D(.65)
+
         slicer.mrmlScene.GetFirstNodeByName("needle-funnel").GetDisplayNode().SetVisibility(False)
         slicer.mrmlScene.GetFirstNodeByName("Segmentation_4").SetDisplayVisibility(False)
         funnelSegNode.GetDisplayNode().SetOpacity(.3)
@@ -1418,20 +1440,20 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # cameras are associated with their respective views. e.g, View1 -> Camera, View2 -> Camera_1, etc
 
         camera = slicer.mrmlScene.GetFirstNodeByName("Camera")
-        camera.SetPosition(0, 0, 0)
-        camera.SetViewUp([0.008172250468107965, 0.15448236681251978, 0.987961746560204])
+        # camera.SetPosition(0, 0, 0)
+        camera.SetViewUp((0.5742038140618704, 0.22941231169956072, 0.7859134628936348))
         camera.SetFocalPoint(
-            [151.7727289596655, -39.799073622705414, -147.57102173244746]
+            (165.16251536459512, 12.917186117512678, -169.49134772391594)
         )
         camera_focal = camera.GetFocalPoint()
         camera_viewup = camera.GetViewUp()
         # camera.SetPosition([222.5576399470194, -185.12465478378599, 266.6817368815024])
         # camera.SetPosition([153.286, -633.679, -54.2941])
         camera.SetPosition(
-            [109.43928418144009, -265.2057189369665, -111.97519861503923]
+            (182.00493213214293, 192.6735737843553, -234.26859202243782)
         )
 
-        camera.SetViewUp([-0.00057625, 0.205052, 0.978751])
+        # camera.SetViewUp([-0.00057625, 0.205052, 0.978751])
 
         camera_2 = slicer.mrmlScene.GetFirstNodeByName("Camera_1")
         camera_2.SetPosition(0, 0, 0)
@@ -1478,7 +1500,11 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # set ego view
 
         self.initial_position = np.eye(4)
-        self.initial_position[:3, 3] = self.plan_positions[0, :]
+        # self.initial_position[:3, 3] = self.plan_positions[0, :]
+
+        rot = self.quaternionToRotationMatrix([0.28303, -0.447205, -0.175769, 0.830064])
+        self.initial_position[:3,:3] = rot
+        self.initial_position[:3, 3] = np.array([191.956, 5.10884, -195.123])
 
         camera_2.SetAndObserveTransformNodeID(self.composite_needle.GetID())
 
@@ -1486,9 +1512,9 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
             self.npToVtkMatrix(self.initial_position)
         )
 
-        camera_2.SetPosition(182.25036294784056, -62.8664316131424, -201.92664210949783)
+        camera_2.SetPosition(174.9750110837732, 71.52764523810741, -203.72155511216306)
         camera_2.SetViewUp(
-            0.9979496069888548, -0.016440270534469646, 0.06185708864425579
+            0.5437935013544982, 0.20497572938592018, 0.8138019281418086
         )
 
         camera_2_focal = camera_2.GetFocalPoint()
