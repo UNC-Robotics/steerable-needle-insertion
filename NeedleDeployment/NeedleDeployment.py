@@ -1086,8 +1086,9 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         )
 
     def updateAllowedPosDevLine(self, index, transform, needle_pos, distance, radius):
+        distance_ipl, index_ipl = self.ckdinterpolated.query(needle_pos)
 
-        p1 = self.plan_positions[index]
+        p1 = self.interpolated_positions[index_ipl]
         p2 = needle_pos
 
         # find angle between deviation line and plan direction to toggle line visibility
@@ -1220,6 +1221,7 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
 
         # ckdtree for nearest neighbor search
         self.ckdtree = cKDTree(self.plan_positions)
+        self.ckdinterpolated = cKDTree(self.interpolated_positions)
         plan_quaternions = data[:, 10:14]
 
         # create collection of matrices with full plan transforms
@@ -1265,7 +1267,6 @@ class NeedleDeploymentWidget(ScriptedLoadableModuleWidget):
         # create Line structures for the plan and the surrounding funnel
         # num_points = data.shape[0]
         num_points = self.interpolated_positions.shape[0]
-        print(f"{num_points=}")
         plan_radii = np.full((num_points, 1), 0.1)
         [plan_node, self.plan_display_node] = self.createLine(
             self.interpolated_positions, plan_radii, [0, 0, 1], 0.4, "needle-plan"
